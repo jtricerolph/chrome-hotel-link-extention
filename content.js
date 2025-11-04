@@ -275,22 +275,60 @@ async function handleBookingDialog(dialogElement) {
 
   // Find the dialog content area
   const contentArea = dialogElement.querySelector('.ui-dialog-content');
-  if (!contentArea) return;
+  if (!contentArea) {
+    console.log('[Hotel Extension] No content area found');
+    return;
+  }
 
   // Get the first fieldset to inject our info after the title
-  const firstFieldset = contentArea.querySelector('fieldset');
-  if (!firstFieldset) return;
+  let firstFieldset = contentArea.querySelector('fieldset');
+
+  if (!firstFieldset) {
+    console.log('[Hotel Extension] No fieldset found yet, waiting for content to load...');
+
+    // Content hasn't loaded yet - watch for it
+    const contentObserver = new MutationObserver((mutations) => {
+      firstFieldset = contentArea.querySelector('fieldset');
+      if (firstFieldset) {
+        console.log('[Hotel Extension] Content loaded, fetching restaurant data...');
+        contentObserver.disconnect();
+
+        // Now fetch and inject the data
+        fetchRestaurantBookingData(bookingId).then(restaurantData => {
+          if (restaurantData) {
+            console.log('[Hotel Extension] Restaurant data received, injecting...');
+            injectRestaurantInfoIntoDialog(firstFieldset, restaurantData, bookingId);
+          } else {
+            console.log('[Hotel Extension] No restaurant data returned from API');
+          }
+        }).catch(error => {
+          console.error('[Hotel Extension] Error fetching from API:', error);
+        });
+      }
+    });
+
+    contentObserver.observe(contentArea, {
+      childList: true,
+      subtree: true
+    });
+
+    return;
+  }
+
+  console.log('[Hotel Extension] Content already loaded, fetching restaurant data...');
 
   // Fetch restaurant booking data from admin API
   try {
     const restaurantData = await fetchRestaurantBookingData(bookingId);
 
     if (restaurantData) {
-      // Inject the restaurant booking info into the dialog
+      console.log('[Hotel Extension] Restaurant data received, injecting...');
       injectRestaurantInfoIntoDialog(firstFieldset, restaurantData, bookingId);
+    } else {
+      console.log('[Hotel Extension] No restaurant data returned from API');
     }
   } catch (error) {
-    console.error('Error fetching restaurant data:', error);
+    console.error('[Hotel Extension] Error fetching from API:', error);
   }
 }
 
