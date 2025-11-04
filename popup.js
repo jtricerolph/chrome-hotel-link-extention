@@ -62,9 +62,8 @@ async function loadBookingData() {
       // No bookings found
       showNoMatches(bookingId, adminBaseUrl);
     } else {
-      // Unexpected response format - show raw data for debugging
+      // Unexpected response format
       showError('Unexpected response format from API');
-      console.log('API Response:', data);
     }
 
   } catch (error) {
