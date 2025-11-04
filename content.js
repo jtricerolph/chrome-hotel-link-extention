@@ -273,8 +273,8 @@ async function handleBookingDialog(dialogElement) {
     }
   }
 
-  // Instead of injecting into the NewBook dialog, trigger the extension popup
-  console.log('[Hotel Extension] Sending message to background to check booking and open popup...');
+  // Trigger the extension popup for alerts/warnings
+  console.log('[Hotel Extension] Sending message to background to check booking and trigger popup if needed...');
 
   // Send message to background script to check this booking and open the extension popup
   if (chrome.runtime?.id) {
@@ -288,6 +288,9 @@ async function handleBookingDialog(dialogElement) {
       console.error('[Hotel Extension] Failed to send message to background:', error);
     }
   }
+
+  // Also inject a Restaurant button into the dialog's button pane for quick access
+  await injectRestaurantButtonIntoDialog(dialogElement, bookingId);
 }
 
 async function handleEasyToolTipBooking(tooltipElement) {
@@ -310,6 +313,13 @@ async function handleEasyToolTipBooking(tooltipElement) {
 
   console.log('[Hotel Extension] Detected easyToolTip booking popup for booking ID:', bookingId);
 
+  // Check if we've already processed this tooltip
+  if (tooltipElement.dataset.hotelExtensionProcessed) {
+    console.log('[Hotel Extension] Tooltip already processed, skipping');
+    return;
+  }
+  tooltipElement.dataset.hotelExtensionProcessed = 'true';
+
   // Store the current booking ID for the extension popup
   if (chrome.runtime?.id) {
     try {
@@ -320,10 +330,8 @@ async function handleEasyToolTipBooking(tooltipElement) {
     }
   }
 
-  // Instead of injecting into the NewBook tooltip, trigger the extension popup
-  console.log('[Hotel Extension] Sending message to background to check booking and open popup...');
-
-  // Send message to background script to check this booking and open the extension popup
+  // Trigger the extension popup for alerts/warnings
+  console.log('[Hotel Extension] Sending message to background to check booking and trigger popup if needed...');
   if (chrome.runtime?.id) {
     try {
       chrome.runtime.sendMessage({
@@ -335,6 +343,9 @@ async function handleEasyToolTipBooking(tooltipElement) {
       console.error('[Hotel Extension] Failed to send message to background:', error);
     }
   }
+
+  // Also inject a Restaurant row into the table for quick access
+  await injectRestaurantRowIntoTooltip(tooltipElement, bookingId);
 }
 
 async function injectRestaurantInfoAsTab(tabContent, bookingId) {
@@ -507,6 +518,179 @@ async function fetchRestaurantBookingData(bookingId) {
     console.error('Error fetching from API:', error);
     return null;
   }
+}
+
+async function injectRestaurantRowIntoTooltip(tooltipElement, bookingId) {
+  // Find the table in the tooltip
+  const table = tooltipElement.querySelector('.pretty_table.fieldset_table');
+  if (!table) {
+    console.log('[Hotel Extension] No table found in tooltip');
+    return;
+  }
+
+  const tbody = table.querySelector('tbody');
+  if (!tbody) {
+    console.log('[Hotel Extension] No tbody found in table');
+    return;
+  }
+
+  // Fetch restaurant booking data from API
+  const data = await fetchRestaurantBookingData(bookingId);
+
+  if (!data) {
+    console.log('[Hotel Extension] No data returned from API');
+    return;
+  }
+
+  // Get settings for admin URL
+  const result = await chrome.storage.local.get(['settings']);
+  const settings = result.settings || {};
+  const adminBaseUrl = settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
+
+  // Determine button text and URL based on booking status
+  let buttonText = 'View Restaurant Bookings';
+  let buttonUrl = `${adminBaseUrl}/booking/${bookingId}`;
+  let buttonClass = '';
+
+  // Check if there are matches
+  if (data.success && data.bookings && data.bookings.length > 0) {
+    const booking = data.bookings[0];
+    let hasMatch = false;
+    let hasSuggestedMatch = false;
+    let hasNoMatch = false;
+
+    for (const night of booking.nights) {
+      const matchCount = night.match_count || 0;
+
+      if (matchCount > 0 && night.resos_bookings) {
+        const match = night.resos_bookings[0];
+        if (match.is_primary) {
+          hasMatch = true;
+        } else {
+          hasSuggestedMatch = true;
+        }
+      } else {
+        hasNoMatch = true;
+      }
+    }
+
+    // Priority: no match > suggested > matched
+    if (hasNoMatch) {
+      buttonText = 'Create Booking';
+      buttonClass = 'create';
+    } else if (hasSuggestedMatch) {
+      buttonText = 'Check/Update Booking';
+      buttonClass = 'update';
+    } else if (hasMatch) {
+      buttonText = 'View Restaurant Bookings';
+      buttonClass = 'view';
+    }
+  }
+
+  // Create the new row
+  const newRow = document.createElement('tr');
+  const rowCount = tbody.querySelectorAll('tr').length;
+  newRow.className = rowCount % 2 === 0 ? 'odd' : 'even';
+
+  newRow.innerHTML = `
+    <td class="labeler" style="width: 35%;">
+      <label class="fieldset_label">Restaurant</label>
+    </td>
+    <td class="view_value" style="width: 65%;">
+      <a href="${buttonUrl}" class="hotel-extension-restaurant-button ${buttonClass}" target="_blank" style="display: inline-block; padding: 6px 12px; background: #4a90e2; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
+        <i class="far fa-utensils fa-fw" style="vertical-align: middle; font-size: 14px; margin-right: 4px;"></i>
+        ${buttonText}
+      </a>
+    </td>
+  `;
+
+  // Insert the row at the end of the table
+  tbody.appendChild(newRow);
+  console.log('[Hotel Extension] Restaurant row injected into tooltip');
+}
+
+async function injectRestaurantButtonIntoDialog(dialogElement, bookingId) {
+  // Find the button pane in the dialog
+  const buttonPane = dialogElement.querySelector('.ui-dialog-buttonpane .ui-dialog-buttonset');
+  if (!buttonPane) {
+    console.log('[Hotel Extension] No button pane found in dialog');
+    return;
+  }
+
+  // Fetch restaurant booking data from API
+  const data = await fetchRestaurantBookingData(bookingId);
+
+  if (!data) {
+    console.log('[Hotel Extension] No data returned from API');
+    return;
+  }
+
+  // Get settings for admin URL
+  const result = await chrome.storage.local.get(['settings']);
+  const settings = result.settings || {};
+  const adminBaseUrl = settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
+
+  // Determine button text based on booking status
+  let buttonText = 'Restaurant';
+  let buttonIcon = 'fa-utensils';
+  let buttonUrl = `${adminBaseUrl}/booking/${bookingId}`;
+
+  // Check if there are matches
+  if (data.success && data.bookings && data.bookings.length > 0) {
+    const booking = data.bookings[0];
+    let hasMatch = false;
+    let hasSuggestedMatch = false;
+    let hasNoMatch = false;
+
+    for (const night of booking.nights) {
+      const matchCount = night.match_count || 0;
+
+      if (matchCount > 0 && night.resos_bookings) {
+        const match = night.resos_bookings[0];
+        if (match.is_primary) {
+          hasMatch = true;
+        } else {
+          hasSuggestedMatch = true;
+        }
+      } else {
+        hasNoMatch = true;
+      }
+    }
+
+    // Set button text based on priority
+    if (hasNoMatch) {
+      buttonText = 'Create Booking';
+    } else if (hasSuggestedMatch) {
+      buttonText = 'Check Booking';
+    } else if (hasMatch) {
+      buttonText = 'View Booking';
+    }
+  }
+
+  // Create the button (matching NewBook's button style)
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'ui-button ui-corner-all ui-widget hotel-extension-restaurant-btn';
+  button.innerHTML = `
+    <span class="ui-button-icon ui-icon ${buttonIcon}"></span>
+    <span class="ui-button-icon-space"> </span>
+    ${buttonText}
+  `;
+
+  // Add click handler to open URL in new tab
+  button.addEventListener('click', () => {
+    window.open(buttonUrl, '_blank');
+  });
+
+  // Insert button before the Close button (which is typically last)
+  const closeButton = buttonPane.querySelector('button:last-child');
+  if (closeButton) {
+    buttonPane.insertBefore(button, closeButton);
+  } else {
+    buttonPane.appendChild(button);
+  }
+
+  console.log('[Hotel Extension] Restaurant button injected into dialog');
 }
 
 function injectRestaurantInfoIntoDialog(firstFieldset, data, bookingId) {
