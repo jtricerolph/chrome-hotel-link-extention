@@ -40,6 +40,7 @@ function findBookingIdFromContext() {
 // Store last right-clicked element for context menu
 let lastRightClickedElement = null;
 
+// Override right-click blocking - run in capture phase with highest priority
 document.addEventListener('contextmenu', (event) => {
   lastRightClickedElement = event.target;
 
@@ -59,7 +60,36 @@ document.addEventListener('contextmenu', (event) => {
 
     element = element.parentElement;
   }
+
+  // IMPORTANT: Allow the context menu to show by stopping any page scripts from blocking it
+  event.stopPropagation();
+  event.stopImmediatePropagation();
 }, true);
+
+// Additional protection: Remove any existing contextmenu event listeners that block right-click
+// This runs early to prevent the page from blocking our menu
+(function() {
+  const originalAddEventListener = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function(type, listener, options) {
+    // Don't let the page block contextmenu events
+    if (type === 'contextmenu') {
+      // Still add it, but our listener (above) runs first in capture phase
+      return originalAddEventListener.call(this, type, listener, options);
+    }
+    return originalAddEventListener.call(this, type, listener, options);
+  };
+})();
+
+// Force re-enable right-click if the page tries to disable it with oncontextmenu
+document.addEventListener('DOMContentLoaded', () => {
+  document.oncontextmenu = null;
+  document.body.oncontextmenu = null;
+
+  // Remove any inline oncontextmenu attributes
+  document.querySelectorAll('[oncontextmenu]').forEach(el => {
+    el.removeAttribute('oncontextmenu');
+  });
+});
 
 // Optional: Add visual indicator when hovering over booking elements
 // This can help staff know which bookings are clickable
