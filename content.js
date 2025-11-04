@@ -116,54 +116,131 @@ if (window.location.href.includes('newbook.cloud')) {
 // Detect when NewBook opens a booking popup and inject restaurant booking info
 
 function detectAndHandleBookingPopup() {
+  console.log('[Hotel Extension] Starting popup detection...');
+
+  // Check for existing dialogs that might already be on the page
+  const checkExistingDialogs = () => {
+    console.log('[Hotel Extension] Checking for existing dialogs...');
+
+    // Check for jQuery UI dialogs
+    const existingDialogs = document.querySelectorAll('.ui-dialog');
+    console.log('[Hotel Extension] Found', existingDialogs.length, 'existing ui-dialog elements');
+    existingDialogs.forEach(dialog => {
+      // Only handle visible dialogs
+      if (dialog.style.display !== 'none') {
+        console.log('[Hotel Extension] Found visible ui-dialog, processing...');
+        handleBookingDialog(dialog);
+      }
+    });
+
+    // Check for easyToolTip popups
+    const existingTooltips = document.querySelectorAll('.easyToolTip');
+    console.log('[Hotel Extension] Found', existingTooltips.length, 'existing easyToolTip elements');
+    existingTooltips.forEach(tooltip => {
+      if (tooltip.style.display !== 'none') {
+        console.log('[Hotel Extension] Found visible easyToolTip, processing...');
+        handleEasyToolTipBooking(tooltip);
+      }
+    });
+  };
+
+  // Check immediately for any existing dialogs
+  checkExistingDialogs();
+
   // Watch for both jQuery UI dialogs and easyToolTip popups being added to the DOM
   const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
         if (node.nodeType === 1) { // Element node
+          console.log('[Hotel Extension] Node added:', node.className);
 
           // Format 1: Full jQuery UI dialog
           if (node.classList && node.classList.contains('ui-dialog')) {
+            console.log('[Hotel Extension] Found ui-dialog via mutation');
             handleBookingDialog(node);
           }
 
           // Format 2: EasyToolTip compact popup
           if (node.classList && node.classList.contains('easyToolTip')) {
+            console.log('[Hotel Extension] Found easyToolTip via mutation');
             handleEasyToolTipBooking(node);
           }
 
           // Also check children in case elements are nested
           if (node.querySelectorAll) {
             const dialogs = node.querySelectorAll('.ui-dialog');
+            if (dialogs.length > 0) {
+              console.log('[Hotel Extension] Found', dialogs.length, 'ui-dialog children');
+            }
             dialogs.forEach(dialog => handleBookingDialog(dialog));
 
             const tooltips = node.querySelectorAll('.easyToolTip');
+            if (tooltips.length > 0) {
+              console.log('[Hotel Extension] Found', tooltips.length, 'easyToolTip children');
+            }
             tooltips.forEach(tooltip => handleEasyToolTipBooking(tooltip));
           }
         }
       });
+
+      // Also watch for attribute changes (e.g., style changes that show/hide dialogs)
+      if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+        const target = mutation.target;
+        if (target.classList && target.classList.contains('ui-dialog')) {
+          if (target.style.display !== 'none') {
+            console.log('[Hotel Extension] ui-dialog became visible');
+            handleBookingDialog(target);
+          }
+        }
+      }
     });
   });
 
   // Start observing
   observer.observe(document.body, {
     childList: true,
-    subtree: true
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['style']
   });
+
+  // Also check periodically for new dialogs (backup detection)
+  setInterval(checkExistingDialogs, 2000);
 }
 
 async function handleBookingDialog(dialogElement) {
+  console.log('[Hotel Extension] handleBookingDialog called');
+
+  // Check if we've already processed this dialog
+  if (dialogElement.dataset.hotelExtensionProcessed) {
+    console.log('[Hotel Extension] Dialog already processed, skipping');
+    return;
+  }
+
   // Check if this is a booking dialog by looking for the title pattern
   const titleElement = dialogElement.querySelector('.ui-dialog-title');
-  if (!titleElement) return;
+  console.log('[Hotel Extension] Title element:', titleElement);
+
+  if (!titleElement) {
+    console.log('[Hotel Extension] No title element found');
+    return;
+  }
 
   const titleText = titleElement.textContent;
+  console.log('[Hotel Extension] Title text:', titleText);
+
   const bookingMatch = titleText.match(/Booking #(\d+)/);
 
-  if (!bookingMatch) return;
+  if (!bookingMatch) {
+    console.log('[Hotel Extension] Title does not match booking pattern');
+    return;
+  }
 
   const bookingId = bookingMatch[1];
-  console.log('Detected booking popup for booking ID:', bookingId);
+  console.log('[Hotel Extension] ✓ Detected booking popup for booking ID:', bookingId);
+
+  // Mark as processed
+  dialogElement.dataset.hotelExtensionProcessed = 'true';
 
   // Find the dialog content area
   const contentArea = dialogElement.querySelector('.ui-dialog-content');
