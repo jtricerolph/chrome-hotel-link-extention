@@ -521,13 +521,45 @@ async function fetchRestaurantBookingData(bookingId) {
 }
 
 async function injectRestaurantRowIntoTooltip(tooltipElement, bookingId) {
-  // Find the table in the tooltip
-  const table = tooltipElement.querySelector('.pretty_table.fieldset_table');
+  // Find the table in the tooltip - try multiple selectors
+  let table = tooltipElement.querySelector('.pretty_table.fieldset_table');
+
   if (!table) {
-    console.log('[Hotel Extension] No table found in tooltip');
+    // Try without the compound class
+    table = tooltipElement.querySelector('.pretty_table');
+  }
+
+  if (!table) {
+    // Try just looking for any table
+    table = tooltipElement.querySelector('table');
+  }
+
+  if (!table) {
+    console.log('[Hotel Extension] No table found in tooltip, waiting for content...');
+
+    // Table hasn't loaded yet - watch for it
+    const tableObserver = new MutationObserver((mutations) => {
+      table = tooltipElement.querySelector('table');
+      if (table) {
+        console.log('[Hotel Extension] Table found, injecting restaurant row...');
+        tableObserver.disconnect();
+        injectRowIntoTable(table, bookingId);
+      }
+    });
+
+    tableObserver.observe(tooltipElement, {
+      childList: true,
+      subtree: true
+    });
+
     return;
   }
 
+  console.log('[Hotel Extension] Table found immediately, injecting restaurant row...');
+  await injectRowIntoTable(table, bookingId);
+}
+
+async function injectRowIntoTable(table, bookingId) {
   const tbody = table.querySelector('tbody');
   if (!tbody) {
     console.log('[Hotel Extension] No tbody found in table');
@@ -538,7 +570,7 @@ async function injectRestaurantRowIntoTooltip(tooltipElement, bookingId) {
   const data = await fetchRestaurantBookingData(bookingId);
 
   if (!data) {
-    console.log('[Hotel Extension] No data returned from API');
+    console.log('[Hotel Extension] No data returned from API for row injection');
     return;
   }
 
@@ -606,17 +638,41 @@ async function injectRestaurantRowIntoTooltip(tooltipElement, bookingId) {
 
   // Insert the row at the end of the table
   tbody.appendChild(newRow);
-  console.log('[Hotel Extension] Restaurant row injected into tooltip');
+  console.log('[Hotel Extension] Restaurant row injected into tooltip table');
 }
 
 async function injectRestaurantButtonIntoDialog(dialogElement, bookingId) {
   // Find the button pane in the dialog
-  const buttonPane = dialogElement.querySelector('.ui-dialog-buttonpane .ui-dialog-buttonset');
+  let buttonPane = dialogElement.querySelector('.ui-dialog-buttonpane .ui-dialog-buttonset');
+
   if (!buttonPane) {
-    console.log('[Hotel Extension] No button pane found in dialog');
+    console.log('[Hotel Extension] No button pane found yet, waiting for it to load...');
+
+    // Button pane hasn't loaded yet - watch for it
+    const buttonPaneObserver = new MutationObserver((mutations) => {
+      buttonPane = dialogElement.querySelector('.ui-dialog-buttonpane .ui-dialog-buttonset');
+      if (buttonPane) {
+        console.log('[Hotel Extension] Button pane loaded, injecting restaurant button...');
+        buttonPaneObserver.disconnect();
+
+        // Now inject the button
+        injectButtonIntoPane(buttonPane, bookingId);
+      }
+    });
+
+    buttonPaneObserver.observe(dialogElement, {
+      childList: true,
+      subtree: true
+    });
+
     return;
   }
 
+  console.log('[Hotel Extension] Button pane already loaded, injecting restaurant button...');
+  await injectButtonIntoPane(buttonPane, bookingId);
+}
+
+async function injectButtonIntoPane(buttonPane, bookingId) {
   // Fetch restaurant booking data from API
   const data = await fetchRestaurantBookingData(bookingId);
 
@@ -762,6 +818,171 @@ if (document.readyState === 'loading') {
 }
 
 // ============================================================================
+// FULL BOOKING VIEW PAGE - INJECT BUTTONS INTO CONTEXT MENUS
+// ============================================================================
+
+async function injectRestaurantButtonsIntoContextMenus(bookingId) {
+  console.log('[Hotel Extension] Injecting Restaurant buttons into context menus for booking:', bookingId);
+
+  // Check if we've already processed this page
+  if (document.body.dataset.hotelExtensionContextMenusProcessed === bookingId) {
+    console.log('[Hotel Extension] Context menus already processed for this booking, skipping');
+    return;
+  }
+
+  // Mark as processed for this booking ID
+  document.body.dataset.hotelExtensionContextMenusProcessed = bookingId;
+
+  // Try to find the context menus
+  let headerMenu = document.getElementById('context-menu-header');
+  let footerMenu = document.getElementById('context-menu-footer');
+
+  if (!headerMenu && !footerMenu) {
+    console.log('[Hotel Extension] Context menus not found yet, waiting for them to load...');
+
+    // Watch for context menus to appear
+    const menuObserver = new MutationObserver((mutations) => {
+      headerMenu = document.getElementById('context-menu-header');
+      footerMenu = document.getElementById('context-menu-footer');
+
+      if (headerMenu || footerMenu) {
+        console.log('[Hotel Extension] Context menu(s) found, injecting buttons...');
+        menuObserver.disconnect();
+
+        // Inject into whichever menus were found
+        if (headerMenu) injectButtonIntoContextMenu(headerMenu, bookingId, 'header');
+        if (footerMenu) injectButtonIntoContextMenu(footerMenu, bookingId, 'footer');
+      }
+    });
+
+    menuObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    // Set timeout to stop observing after 10 seconds if menus don't appear
+    setTimeout(() => {
+      menuObserver.disconnect();
+      console.log('[Hotel Extension] Stopped waiting for context menus (timeout)');
+    }, 10000);
+
+    return;
+  }
+
+  // Context menus found immediately, inject buttons
+  if (headerMenu) {
+    await injectButtonIntoContextMenu(headerMenu, bookingId, 'header');
+  }
+  if (footerMenu) {
+    await injectButtonIntoContextMenu(footerMenu, bookingId, 'footer');
+  }
+}
+
+async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
+  console.log('[Hotel Extension] Injecting button into', position, 'context menu');
+
+  // Check if we've already injected a button here
+  if (contextMenu.querySelector('.hotel-extension-restaurant-menu-item')) {
+    console.log('[Hotel Extension] Button already exists in', position, 'context menu');
+    return;
+  }
+
+  // Fetch restaurant booking data from API
+  const data = await fetchRestaurantBookingData(bookingId);
+
+  if (!data) {
+    console.log('[Hotel Extension] No data returned from API for context menu');
+    return;
+  }
+
+  // Get settings for admin URL
+  const result = await chrome.storage.local.get(['settings']);
+  const settings = result.settings || {};
+  const adminBaseUrl = settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
+
+  // Determine button text based on booking status
+  let buttonText = 'Restaurant';
+  let buttonIcon = 'fa-utensils';
+  let buttonUrl = `${adminBaseUrl}/booking/${bookingId}`;
+
+  // Check if there are matches
+  if (data.success && data.bookings && data.bookings.length > 0) {
+    const booking = data.bookings[0];
+    let hasMatch = false;
+    let hasSuggestedMatch = false;
+    let hasNoMatch = false;
+
+    for (const night of booking.nights) {
+      const matchCount = night.match_count || 0;
+
+      if (matchCount > 0 && night.resos_bookings) {
+        const match = night.resos_bookings[0];
+        if (match.is_primary) {
+          hasMatch = true;
+        } else {
+          hasSuggestedMatch = true;
+        }
+      } else {
+        hasNoMatch = true;
+      }
+    }
+
+    // Set button text based on priority
+    if (hasNoMatch) {
+      buttonText = 'Create Booking';
+      buttonIcon = 'fa-plus-circle';
+    } else if (hasSuggestedMatch) {
+      buttonText = 'Check Booking';
+      buttonIcon = 'fa-check-circle';
+    } else if (hasMatch) {
+      buttonText = 'View Booking';
+      buttonIcon = 'fa-eye';
+    }
+  }
+
+  // Create the menu item (matching NewBook's style)
+  const menuItem = document.createElement('li');
+  menuItem.className = 'hotel-extension-restaurant-menu-item';
+
+  const link = document.createElement('a');
+  link.href = buttonUrl;
+  link.target = '_blank';
+  link.innerHTML = `
+    <i class="far ${buttonIcon} fa-fw" style="margin-right: 8px;"></i>
+    ${buttonText}
+  `;
+
+  // Add click handler
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.open(buttonUrl, '_blank');
+  });
+
+  menuItem.appendChild(link);
+
+  // Find the "Options" menu item to insert before it
+  const menuItems = contextMenu.querySelectorAll('li');
+  let optionsItem = null;
+
+  for (const item of menuItems) {
+    const linkText = item.textContent.trim();
+    if (linkText.includes('Options') || linkText.includes('options')) {
+      optionsItem = item;
+      break;
+    }
+  }
+
+  // Insert before Options, or at the end if Options not found
+  if (optionsItem) {
+    contextMenu.insertBefore(menuItem, optionsItem);
+    console.log('[Hotel Extension] Inserted Restaurant button before Options in', position, 'context menu');
+  } else {
+    contextMenu.appendChild(menuItem);
+    console.log('[Hotel Extension] Appended Restaurant button to', position, 'context menu');
+  }
+}
+
+// ============================================================================
 // DETECT CURRENT PAGE AND UPDATE STORAGE
 // ============================================================================
 // Detect if we're on a booking page and store the booking ID for the popup
@@ -789,6 +1010,9 @@ function updateCurrentBookingId() {
     } catch (error) {
       console.log('[Hotel Extension] Failed to store booking ID (extension may have been reloaded):', error.message);
     }
+
+    // Also inject Restaurant buttons into context menus on the full booking view page
+    injectRestaurantButtonsIntoContextMenus(bookingId);
   } else {
     // Not on a booking page, clear the stored ID
     console.log('[Hotel Extension] Not on a booking page');
