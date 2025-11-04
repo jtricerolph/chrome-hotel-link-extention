@@ -61,7 +61,13 @@ document.addEventListener('contextmenu', (event) => {
 
     if (bookingId) {
       // Store this booking ID for the context menu action
-      chrome.storage.local.set({ lastClickedBookingId: bookingId });
+      if (chrome.runtime?.id) {
+        try {
+          chrome.storage.local.set({ lastClickedBookingId: bookingId });
+        } catch (error) {
+          console.log('[Hotel Extension] Failed to store clicked booking ID:', error.message);
+        }
+      }
       break;
     }
 
@@ -258,8 +264,14 @@ async function handleBookingDialog(dialogElement) {
   dialogElement.dataset.hotelExtensionProcessed = 'true';
 
   // Store the current booking ID for the extension popup
-  chrome.storage.local.set({ currentBookingId: bookingId });
-  console.log('[Hotel Extension] Stored currentBookingId from popup:', bookingId);
+  if (chrome.runtime?.id) {
+    try {
+      chrome.storage.local.set({ currentBookingId: bookingId });
+      console.log('[Hotel Extension] Stored currentBookingId from popup:', bookingId);
+    } catch (error) {
+      console.log('[Hotel Extension] Failed to store booking ID from popup:', error.message);
+    }
+  }
 
   // Find the dialog content area
   const contentArea = dialogElement.querySelector('.ui-dialog-content');
@@ -572,6 +584,12 @@ if (document.readyState === 'loading') {
 function updateCurrentBookingId() {
   console.log('[Hotel Extension] Checking current page URL:', window.location.href);
 
+  // Check if extension context is still valid
+  if (!chrome.runtime?.id) {
+    console.log('[Hotel Extension] Extension context invalidated, skipping update');
+    return;
+  }
+
   // Check if we're on a booking_view page
   const urlMatch = window.location.href.match(/\/bookings_view\/(\d+)/);
 
@@ -580,13 +598,21 @@ function updateCurrentBookingId() {
     console.log('[Hotel Extension] ✓ On booking page, ID:', bookingId);
 
     // Store the current booking ID for the extension popup
-    chrome.storage.local.set({ currentBookingId: bookingId });
-    console.log('[Hotel Extension] Stored currentBookingId:', bookingId);
+    try {
+      chrome.storage.local.set({ currentBookingId: bookingId });
+      console.log('[Hotel Extension] Stored currentBookingId:', bookingId);
+    } catch (error) {
+      console.log('[Hotel Extension] Failed to store booking ID (extension may have been reloaded):', error.message);
+    }
   } else {
     // Not on a booking page, clear the stored ID
     console.log('[Hotel Extension] Not on a booking page');
-    chrome.storage.local.remove('currentBookingId');
-    console.log('[Hotel Extension] Cleared currentBookingId');
+    try {
+      chrome.storage.local.remove('currentBookingId');
+      console.log('[Hotel Extension] Cleared currentBookingId');
+    } catch (error) {
+      console.log('[Hotel Extension] Failed to clear booking ID (extension may have been reloaded):', error.message);
+    }
   }
 }
 
