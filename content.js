@@ -1,6 +1,13 @@
 // Content script for NewBook pages
 // This script runs on all NewBook pages and enables future features like right-click menus
 
+console.log('===============================================');
+console.log('🏨 Hotel Number Four Extension LOADED');
+console.log('===============================================');
+console.log('[Hotel Extension] Version: 1.0');
+console.log('[Hotel Extension] URL:', window.location.href);
+console.log('===============================================');
+
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'getBookingIdFromElement') {
@@ -94,6 +101,13 @@ document.addEventListener('DOMContentLoaded', () => {
 // Optional: Add visual indicator when hovering over booking elements
 // This can help staff know which bookings are clickable
 function addBookingHighlighting() {
+  // Wait for document.head to be available
+  if (!document.head) {
+    console.log('[Hotel Extension] document.head not ready, waiting...');
+    setTimeout(addBookingHighlighting, 100);
+    return;
+  }
+
   const style = document.createElement('style');
   style.textContent = `
     [booking_id]:hover,
@@ -103,6 +117,7 @@ function addBookingHighlighting() {
     }
   `;
   document.head.appendChild(style);
+  console.log('[Hotel Extension] Added booking highlighting styles');
 }
 
 // Enable highlighting on booking chart pages
@@ -116,54 +131,136 @@ if (window.location.href.includes('newbook.cloud')) {
 // Detect when NewBook opens a booking popup and inject restaurant booking info
 
 function detectAndHandleBookingPopup() {
+  console.log('[Hotel Extension] Starting popup detection...');
+
+  // Check for existing dialogs that might already be on the page
+  const checkExistingDialogs = () => {
+    console.log('[Hotel Extension] Checking for existing dialogs...');
+
+    // Check for jQuery UI dialogs
+    const existingDialogs = document.querySelectorAll('.ui-dialog');
+    console.log('[Hotel Extension] Found', existingDialogs.length, 'existing ui-dialog elements');
+    existingDialogs.forEach(dialog => {
+      // Only handle visible dialogs
+      if (dialog.style.display !== 'none') {
+        console.log('[Hotel Extension] Found visible ui-dialog, processing...');
+        handleBookingDialog(dialog);
+      }
+    });
+
+    // Check for easyToolTip popups
+    const existingTooltips = document.querySelectorAll('.easyToolTip');
+    console.log('[Hotel Extension] Found', existingTooltips.length, 'existing easyToolTip elements');
+    existingTooltips.forEach(tooltip => {
+      if (tooltip.style.display !== 'none') {
+        console.log('[Hotel Extension] Found visible easyToolTip, processing...');
+        handleEasyToolTipBooking(tooltip);
+      }
+    });
+  };
+
+  // Check immediately for any existing dialogs
+  checkExistingDialogs();
+
   // Watch for both jQuery UI dialogs and easyToolTip popups being added to the DOM
   const observer = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
         if (node.nodeType === 1) { // Element node
+          console.log('[Hotel Extension] Node added:', node.className);
 
           // Format 1: Full jQuery UI dialog
           if (node.classList && node.classList.contains('ui-dialog')) {
+            console.log('[Hotel Extension] Found ui-dialog via mutation');
             handleBookingDialog(node);
           }
 
           // Format 2: EasyToolTip compact popup
           if (node.classList && node.classList.contains('easyToolTip')) {
+            console.log('[Hotel Extension] Found easyToolTip via mutation');
             handleEasyToolTipBooking(node);
           }
 
           // Also check children in case elements are nested
           if (node.querySelectorAll) {
             const dialogs = node.querySelectorAll('.ui-dialog');
+            if (dialogs.length > 0) {
+              console.log('[Hotel Extension] Found', dialogs.length, 'ui-dialog children');
+            }
             dialogs.forEach(dialog => handleBookingDialog(dialog));
 
             const tooltips = node.querySelectorAll('.easyToolTip');
+            if (tooltips.length > 0) {
+              console.log('[Hotel Extension] Found', tooltips.length, 'easyToolTip children');
+            }
             tooltips.forEach(tooltip => handleEasyToolTipBooking(tooltip));
           }
         }
       });
+
+      // Also watch for attribute changes (e.g., style changes that show/hide dialogs)
+      if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+        const target = mutation.target;
+        if (target.classList && target.classList.contains('ui-dialog')) {
+          if (target.style.display !== 'none') {
+            console.log('[Hotel Extension] ui-dialog became visible');
+            handleBookingDialog(target);
+          }
+        }
+      }
     });
   });
 
   // Start observing
   observer.observe(document.body, {
     childList: true,
-    subtree: true
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['style']
   });
+
+  // Also check periodically for new dialogs (backup detection)
+  setInterval(checkExistingDialogs, 2000);
 }
 
 async function handleBookingDialog(dialogElement) {
+  console.log('[Hotel Extension] handleBookingDialog called');
+
+  // Check if we've already processed this dialog
+  if (dialogElement.dataset.hotelExtensionProcessed) {
+    console.log('[Hotel Extension] Dialog already processed, skipping');
+    return;
+  }
+
   // Check if this is a booking dialog by looking for the title pattern
   const titleElement = dialogElement.querySelector('.ui-dialog-title');
-  if (!titleElement) return;
+  console.log('[Hotel Extension] Title element:', titleElement);
+
+  if (!titleElement) {
+    console.log('[Hotel Extension] No title element found');
+    return;
+  }
 
   const titleText = titleElement.textContent;
+  console.log('[Hotel Extension] Title text:', titleText);
+
   const bookingMatch = titleText.match(/Booking #(\d+)/);
 
-  if (!bookingMatch) return;
+  if (!bookingMatch) {
+    console.log('[Hotel Extension] Title does not match booking pattern');
+    return;
+  }
 
   const bookingId = bookingMatch[1];
-  console.log('Detected booking popup for booking ID:', bookingId);
+  console.log('[Hotel Extension] ✓ Detected booking popup for booking ID:', bookingId);
+
+  // Mark as processed
+  dialogElement.dataset.hotelExtensionProcessed = 'true';
+
+  // Store the current booking ID for the extension popup
+  chrome.storage.local.set({ currentBookingId: bookingId }, () => {
+    console.log('[Hotel Extension] Stored currentBookingId from popup:', bookingId);
+  });
 
   // Find the dialog content area
   const contentArea = dialogElement.querySelector('.ui-dialog-content');
@@ -467,6 +564,48 @@ if (document.readyState === 'loading') {
 } else {
   detectAndHandleBookingPopup();
 }
+
+// ============================================================================
+// DETECT CURRENT PAGE AND UPDATE STORAGE
+// ============================================================================
+// Detect if we're on a booking page and store the booking ID for the popup
+
+function updateCurrentBookingId() {
+  console.log('[Hotel Extension] Checking current page URL:', window.location.href);
+
+  // Check if we're on a booking_view page
+  const urlMatch = window.location.href.match(/\/bookings_view\/(\d+)/);
+
+  if (urlMatch) {
+    const bookingId = urlMatch[1];
+    console.log('[Hotel Extension] ✓ On booking page, ID:', bookingId);
+
+    // Store the current booking ID for the extension popup
+    chrome.storage.local.set({ currentBookingId: bookingId }, () => {
+      console.log('[Hotel Extension] Stored currentBookingId:', bookingId);
+    });
+  } else {
+    // Not on a booking page, clear the stored ID
+    console.log('[Hotel Extension] Not on a booking page');
+    chrome.storage.local.remove('currentBookingId', () => {
+      console.log('[Hotel Extension] Cleared currentBookingId');
+    });
+  }
+}
+
+// Update on page load
+updateCurrentBookingId();
+
+// Watch for URL changes (for single-page app navigation)
+let lastUrl = window.location.href;
+new MutationObserver(() => {
+  const currentUrl = window.location.href;
+  if (currentUrl !== lastUrl) {
+    lastUrl = currentUrl;
+    console.log('[Hotel Extension] URL changed to:', currentUrl);
+    updateCurrentBookingId();
+  }
+}).observe(document.body, { childList: true, subtree: true });
 
 // Log for debugging
 console.log('Hotel Number Four - Booking Assistant extension loaded');
