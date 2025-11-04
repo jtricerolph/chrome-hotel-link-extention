@@ -1,6 +1,13 @@
 // Content script for NewBook pages
 // This script runs on all NewBook pages and enables future features like right-click menus
 
+console.log('===============================================');
+console.log('🏨 Hotel Number Four Extension LOADED');
+console.log('===============================================');
+console.log('[Hotel Extension] Version: 1.0');
+console.log('[Hotel Extension] URL:', window.location.href);
+console.log('===============================================');
+
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'getBookingIdFromElement') {
@@ -94,6 +101,13 @@ document.addEventListener('DOMContentLoaded', () => {
 // Optional: Add visual indicator when hovering over booking elements
 // This can help staff know which bookings are clickable
 function addBookingHighlighting() {
+  // Wait for document.head to be available
+  if (!document.head) {
+    console.log('[Hotel Extension] document.head not ready, waiting...');
+    setTimeout(addBookingHighlighting, 100);
+    return;
+  }
+
   const style = document.createElement('style');
   style.textContent = `
     [booking_id]:hover,
@@ -103,6 +117,7 @@ function addBookingHighlighting() {
     }
   `;
   document.head.appendChild(style);
+  console.log('[Hotel Extension] Added booking highlighting styles');
 }
 
 // Enable highlighting on booking chart pages
