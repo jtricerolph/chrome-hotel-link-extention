@@ -308,22 +308,31 @@ async function handleEasyToolTipBooking(tooltipElement) {
     var bookingId = idMatch[1];
   }
 
-  console.log('Detected easyToolTip booking popup for booking ID:', bookingId);
+  console.log('[Hotel Extension] Detected easyToolTip booking popup for booking ID:', bookingId);
 
-  // Find the tab container (where we'll add a new tab for restaurant bookings)
-  const tabContent = tooltipElement.querySelector('#tab_content_' + bookingId);
+  // Store the current booking ID for the extension popup
+  if (chrome.runtime?.id) {
+    try {
+      chrome.storage.local.set({ currentBookingId: bookingId });
+      console.log('[Hotel Extension] Stored currentBookingId from tooltip:', bookingId);
+    } catch (error) {
+      console.log('[Hotel Extension] Failed to store booking ID from tooltip:', error.message);
+    }
+  }
 
-  if (tabContent) {
-    // This tooltip has tabs - add restaurant info as a new tab
-    await injectRestaurantInfoAsTab(tabContent, bookingId);
-  } else {
-    // No tabs - find the first fieldset and inject after it
-    const firstFieldset = tooltipElement.querySelector('fieldset');
-    if (firstFieldset) {
-      const restaurantData = await fetchRestaurantBookingData(bookingId);
-      if (restaurantData) {
-        injectRestaurantInfoIntoTooltip(firstFieldset, restaurantData, bookingId);
-      }
+  // Instead of injecting into the NewBook tooltip, trigger the extension popup
+  console.log('[Hotel Extension] Sending message to background to check booking and open popup...');
+
+  // Send message to background script to check this booking and open the extension popup
+  if (chrome.runtime?.id) {
+    try {
+      chrome.runtime.sendMessage({
+        action: 'checkBookingFromDialog',
+        bookingId: bookingId
+      });
+      console.log('[Hotel Extension] Message sent to background script');
+    } catch (error) {
+      console.error('[Hotel Extension] Failed to send message to background:', error);
     }
   }
 }
