@@ -273,62 +273,20 @@ async function handleBookingDialog(dialogElement) {
     }
   }
 
-  // Find the dialog content area
-  const contentArea = dialogElement.querySelector('.ui-dialog-content');
-  if (!contentArea) {
-    console.log('[Hotel Extension] No content area found');
-    return;
-  }
+  // Instead of injecting into the NewBook dialog, trigger the extension popup
+  console.log('[Hotel Extension] Sending message to background to check booking and open popup...');
 
-  // Get the first fieldset to inject our info after the title
-  let firstFieldset = contentArea.querySelector('fieldset');
-
-  if (!firstFieldset) {
-    console.log('[Hotel Extension] No fieldset found yet, waiting for content to load...');
-
-    // Content hasn't loaded yet - watch for it
-    const contentObserver = new MutationObserver((mutations) => {
-      firstFieldset = contentArea.querySelector('fieldset');
-      if (firstFieldset) {
-        console.log('[Hotel Extension] Content loaded, fetching restaurant data...');
-        contentObserver.disconnect();
-
-        // Now fetch and inject the data
-        fetchRestaurantBookingData(bookingId).then(restaurantData => {
-          if (restaurantData) {
-            console.log('[Hotel Extension] Restaurant data received, injecting...');
-            injectRestaurantInfoIntoDialog(firstFieldset, restaurantData, bookingId);
-          } else {
-            console.log('[Hotel Extension] No restaurant data returned from API');
-          }
-        }).catch(error => {
-          console.error('[Hotel Extension] Error fetching from API:', error);
-        });
-      }
-    });
-
-    contentObserver.observe(contentArea, {
-      childList: true,
-      subtree: true
-    });
-
-    return;
-  }
-
-  console.log('[Hotel Extension] Content already loaded, fetching restaurant data...');
-
-  // Fetch restaurant booking data from admin API
-  try {
-    const restaurantData = await fetchRestaurantBookingData(bookingId);
-
-    if (restaurantData) {
-      console.log('[Hotel Extension] Restaurant data received, injecting...');
-      injectRestaurantInfoIntoDialog(firstFieldset, restaurantData, bookingId);
-    } else {
-      console.log('[Hotel Extension] No restaurant data returned from API');
+  // Send message to background script to check this booking and open the extension popup
+  if (chrome.runtime?.id) {
+    try {
+      chrome.runtime.sendMessage({
+        action: 'checkBookingFromDialog',
+        bookingId: bookingId
+      });
+      console.log('[Hotel Extension] Message sent to background script');
+    } catch (error) {
+      console.error('[Hotel Extension] Failed to send message to background:', error);
     }
-  } catch (error) {
-    console.error('[Hotel Extension] Error fetching from API:', error);
   }
 }
 

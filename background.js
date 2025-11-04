@@ -18,94 +18,91 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   }
 });
 
-// Check if the current page is a booking page
-async function checkBookingPage(url, tabId) {
-  const match = url.match(BOOKING_URL_PATTERN);
+// Check booking and update badge/popup (called from dialog detection or page load)
+async function checkBookingAndOpenPopup(bookingId, tabId) {
+  console.log('[Background] Checking booking:', bookingId);
 
-  if (match) {
-    const bookingId = match[1];
+  // Store the current booking ID
+  chrome.storage.local.set({
+    currentBookingId: bookingId
+  });
 
-    // Store the current booking ID
-    chrome.storage.local.set({
-      currentBookingId: bookingId,
-      currentBookingUrl: url
+  // Check booking status via API to determine badge
+  try {
+    const settings = await chrome.storage.local.get(['settings']);
+    const apiEndpoint = settings.settings?.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
+
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        booking_id: parseInt(bookingId),
+        context: 'json'
+      })
     });
 
-    // Check booking status via API to determine badge
-    try {
-      const settings = await chrome.storage.local.get(['settings']);
-      const apiEndpoint = settings.settings?.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
+    if (response.ok) {
+      const data = await response.json();
 
-      const response = await fetch(apiEndpoint, {
+      // Also fetch HTML version for the popup
+      const htmlResponse = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           booking_id: parseInt(bookingId),
-          context: 'json'
+          context: 'chrome-extension'
         })
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      let htmlData = null;
+      if (htmlResponse.ok) {
+        htmlData = await htmlResponse.json();
+      }
 
-        // Also fetch HTML version for the popup
-        const htmlResponse = await fetch(apiEndpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            booking_id: parseInt(bookingId),
-            context: 'chrome-extension'
-          })
-        });
+      // Cache both JSON (for logic) and HTML (for popup display)
+      chrome.storage.local.set({
+        cachedBookingData: data,
+        cachedBookingHtml: htmlData,
+        cachedBookingId: bookingId,
+        cachedTimestamp: Date.now()
+      });
 
-        let htmlData = null;
-        if (htmlResponse.ok) {
-          htmlData = await htmlResponse.json();
-        }
+      // Check for warnings and package alerts
+      let hasPackageAlert = false;
+      let hasWarnings = false;
 
-        // Cache both JSON (for logic) and HTML (for popup display)
-        chrome.storage.local.set({
-          cachedBookingData: data,
-          cachedBookingHtml: htmlData,
-          cachedBookingId: bookingId,
-          cachedTimestamp: Date.now()
-        });
+      if (data.success && data.bookings && data.bookings.length > 0) {
+        const booking = data.bookings[0];
 
-        // Check for warnings and package alerts
-        let hasPackageAlert = false;
-        let hasWarnings = false;
+        for (const night of booking.nights) {
+          const matchCount = night.match_count || 0;
+          const hasPackage = night.has_package || false;
 
-        if (data.success && data.bookings && data.bookings.length > 0) {
-          const booking = data.bookings[0];
-
-          for (const night of booking.nights) {
-            const matchCount = night.match_count || 0;
-            const hasPackage = night.has_package || false;
-
-            // Check for package booking without restaurant reservation (CRITICAL)
-            if (hasPackage && matchCount === 0) {
-              hasPackageAlert = true;
-              break;  // Package alert is most critical
-            }
-            // Check for other warnings
-            else if (matchCount > 1) {
-              // Multiple matches found - this is a warning
+          // Check for package booking without restaurant reservation (CRITICAL)
+          if (hasPackage && matchCount === 0) {
+            hasPackageAlert = true;
+            break;  // Package alert is most critical
+          }
+          // Check for other warnings
+          else if (matchCount > 1) {
+            // Multiple matches found - this is a warning
+            hasWarnings = true;
+          } else if (matchCount === 1 && night.resos_bookings) {
+            // Check if it's not a primary match
+            const match = night.resos_bookings[0];
+            if (!match.is_primary) {
               hasWarnings = true;
-            } else if (matchCount === 1 && night.resos_bookings) {
-              // Check if it's not a primary match
-              const match = night.resos_bookings[0];
-              if (!match.is_primary) {
-                hasWarnings = true;
-              }
             }
           }
         }
+      }
 
-        // Set badge based on severity (package alert > warnings > success)
+      // Set badge based on severity (package alert > warnings > success)
+      if (tabId) {
         if (hasPackageAlert) {
           chrome.action.setBadgeText({ text: '🍽️', tabId: tabId });
           chrome.action.setBadgeBackgroundColor({ color: '#ef4444', tabId: tabId });
@@ -116,29 +113,52 @@ async function checkBookingPage(url, tabId) {
           chrome.action.setBadgeText({ text: '✓', tabId: tabId });
           chrome.action.setBadgeBackgroundColor({ color: '#10b981', tabId: tabId });
         }
+      }
 
-        // Auto-open popup if there are any warnings or critical alerts
-        // OR if API explicitly says to auto-open (package booking without reservation)
-        if (data.should_auto_open || hasPackageAlert || hasWarnings) {
-          try {
-            await chrome.action.openPopup();
-          } catch (error) {
-            // openPopup may fail if not called from user action in some cases
-            // This is expected behavior, just log it
-            console.log('Auto-open triggered but popup opening restricted:', error.message);
-          }
+      // Auto-open popup if there are any warnings or critical alerts
+      // OR if API explicitly says to auto-open (package booking without reservation)
+      if (data.should_auto_open || hasPackageAlert || hasWarnings) {
+        console.log('[Background] Auto-opening popup (has alerts/warnings)');
+        try {
+          await chrome.action.openPopup();
+          console.log('[Background] Popup opened successfully');
+        } catch (error) {
+          // openPopup may fail if not called from user action in some cases
+          // This is expected behavior, just log it
+          console.log('[Background] Auto-open triggered but popup opening restricted:', error.message);
         }
-      } else {
-        // API error, show neutral badge
+      }
+    } else {
+      // API error, show neutral badge
+      if (tabId) {
         chrome.action.setBadgeText({ text: '?', tabId: tabId });
         chrome.action.setBadgeBackgroundColor({ color: '#6b7280', tabId: tabId });
       }
-    } catch (error) {
-      console.error('Error checking booking status:', error);
-      // On error, just show active badge
+    }
+  } catch (error) {
+    console.error('[Background] Error checking booking status:', error);
+    // On error, just show active badge
+    if (tabId) {
       chrome.action.setBadgeText({ text: '✓', tabId: tabId });
       chrome.action.setBadgeBackgroundColor({ color: '#10b981', tabId: tabId });
     }
+  }
+}
+
+// Check if the current page is a booking page
+async function checkBookingPage(url, tabId) {
+  const match = url.match(BOOKING_URL_PATTERN);
+
+  if (match) {
+    const bookingId = match[1];
+
+    // Store the current booking URL
+    chrome.storage.local.set({
+      currentBookingUrl: url
+    });
+
+    // Use the shared function to check booking
+    await checkBookingAndOpenPopup(bookingId, tabId);
   } else {
     // Clear badge if not on a booking page
     chrome.action.setBadgeText({ text: '', tabId: tabId });
@@ -188,6 +208,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     chrome.storage.local.get(['currentBookingId', 'currentBookingUrl'], (result) => {
       sendResponse(result);
     });
+    return true;
+  }
+
+  // Handle request from content script to check booking when dialog appears
+  if (request.action === 'checkBookingFromDialog') {
+    const bookingId = request.bookingId;
+    console.log('[Background] Received checkBookingFromDialog for booking:', bookingId);
+
+    // Check the booking and try to open popup
+    checkBookingAndOpenPopup(bookingId, sender.tab?.id);
+
+    sendResponse({ success: true });
     return true;
   }
 });
