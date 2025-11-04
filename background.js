@@ -82,6 +82,17 @@ async function checkBookingPage(url, tabId) {
           chrome.action.setBadgeText({ text: '✓', tabId: tabId });
           chrome.action.setBadgeBackgroundColor({ color: '#10b981', tabId: tabId });
         }
+
+        // Auto-open popup if API says to (package booking without restaurant reservation)
+        if (data.should_auto_open) {
+          try {
+            await chrome.action.openPopup();
+          } catch (error) {
+            // openPopup may fail if not called from user action in some cases
+            // This is expected behavior, just log it
+            console.log('Auto-open triggered but popup opening restricted:', error.message);
+          }
+        }
       } else {
         // API error, show neutral badge
         chrome.action.setBadgeText({ text: '?', tabId: tabId });
