@@ -56,7 +56,7 @@ async function loadBookingData() {
     const bookingId = result.currentBookingId;
     const settings = result.settings || {};
     const apiEndpoint = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
-    const adminBaseUrl = settings.adminBaseUrl || 'https://admin.hotelnumberfour.com/booking';
+    const adminBaseUrl = settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
 
     let data;
 
