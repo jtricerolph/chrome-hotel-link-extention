@@ -478,13 +478,17 @@ async function fetchRestaurantBookingData(bookingId) {
     // Get settings
     const result = await chrome.storage.local.get(['settings']);
     const settings = result.settings || {};
-    const apiEndpoint = settings.apiEndpoint || 'https://admin.hotelnumberfour.com/api/check-booking';
+    const apiEndpoint = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
 
-    const response = await fetch(`${apiEndpoint}?booking_id=${bookingId}`, {
-      method: 'GET',
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
       headers: {
-        'Accept': 'application/json, text/html'
-      }
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        booking_id: parseInt(bookingId),
+        context: 'chrome-extension'
+      })
     });
 
     if (!response.ok) {
@@ -492,16 +496,8 @@ async function fetchRestaurantBookingData(bookingId) {
       return null;
     }
 
-    const contentType = response.headers.get('content-type');
-
-    if (contentType && contentType.includes('application/json')) {
-      return await response.json();
-    } else if (contentType && contentType.includes('text/html')) {
-      const html = await response.text();
-      return { html: html };
-    }
-
-    return null;
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error('Error fetching from API:', error);
     return null;

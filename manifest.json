@@ -10,7 +10,8 @@
   ],
   "host_permissions": [
     "https://appeu.newbook.cloud/*",
-    "https://admin.hotelnumberfour.com/*"
+    "https://admin.hotelnumberfour.com/*",
+    "https://n4admindev.pterois.co.uk/*"
   ],
   "background": {
     "service_worker": "background.js"

@@ -158,8 +158,8 @@ chrome.runtime.onInstalled.addListener(() => {
   // Set default settings
   chrome.storage.local.set({
     settings: {
-      apiEndpoint: 'https://admin.hotelnumberfour.com/api/check-booking',
-      adminBaseUrl: 'https://admin.hotelnumberfour.com/booking'
+      apiEndpoint: 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match',
+      adminBaseUrl: 'https://n4admindev.pterois.co.uk'
     }
   });
 });
