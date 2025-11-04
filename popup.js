@@ -38,6 +38,16 @@ async function loadBookingData() {
       'cachedTimestamp'
     ]);
 
+    console.log('Popup - Storage result:', {
+      hasCurrentBookingId: !!result.currentBookingId,
+      currentBookingId: result.currentBookingId,
+      hasSettings: !!result.settings,
+      hasCachedHtml: !!result.cachedBookingHtml,
+      cachedBookingId: result.cachedBookingId,
+      cachedTimestamp: result.cachedTimestamp,
+      cacheAge: result.cachedTimestamp ? (Date.now() - result.cachedTimestamp) : null
+    });
+
     if (!result.currentBookingId) {
       showState('notOnBookingPage');
       return;
@@ -61,9 +71,11 @@ async function loadBookingData() {
       console.log('Using cached booking HTML');
       data = result.cachedBookingHtml;
     } else {
-      console.log('Fetching fresh booking data');
+      console.log('Fetching fresh booking data from:', apiEndpoint);
+      console.log('For booking ID:', bookingId);
       // Fetch fresh HTML from API
       data = await fetchBookingData(apiEndpoint, bookingId);
+      console.log('Received data:', data);
     }
 
     // Display the response
@@ -83,6 +95,12 @@ async function loadBookingData() {
 
   } catch (error) {
     console.error('Error loading booking data:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      message: error.message,
+      name: error.name,
+      type: typeof error
+    });
     showError(error.message || 'Failed to connect to admin system');
   }
 }
