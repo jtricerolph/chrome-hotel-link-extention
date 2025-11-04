@@ -258,9 +258,8 @@ async function handleBookingDialog(dialogElement) {
   dialogElement.dataset.hotelExtensionProcessed = 'true';
 
   // Store the current booking ID for the extension popup
-  chrome.storage.local.set({ currentBookingId: bookingId }, () => {
-    console.log('[Hotel Extension] Stored currentBookingId from popup:', bookingId);
-  });
+  chrome.storage.local.set({ currentBookingId: bookingId });
+  console.log('[Hotel Extension] Stored currentBookingId from popup:', bookingId);
 
   // Find the dialog content area
   const contentArea = dialogElement.querySelector('.ui-dialog-content');
@@ -581,15 +580,13 @@ function updateCurrentBookingId() {
     console.log('[Hotel Extension] ✓ On booking page, ID:', bookingId);
 
     // Store the current booking ID for the extension popup
-    chrome.storage.local.set({ currentBookingId: bookingId }, () => {
-      console.log('[Hotel Extension] Stored currentBookingId:', bookingId);
-    });
+    chrome.storage.local.set({ currentBookingId: bookingId });
+    console.log('[Hotel Extension] Stored currentBookingId:', bookingId);
   } else {
     // Not on a booking page, clear the stored ID
     console.log('[Hotel Extension] Not on a booking page');
-    chrome.storage.local.remove('currentBookingId', () => {
-      console.log('[Hotel Extension] Cleared currentBookingId');
-    });
+    chrome.storage.local.remove('currentBookingId');
+    console.log('[Hotel Extension] Cleared currentBookingId');
   }
 }
 
@@ -598,14 +595,28 @@ updateCurrentBookingId();
 
 // Watch for URL changes (for single-page app navigation)
 let lastUrl = window.location.href;
-new MutationObserver(() => {
-  const currentUrl = window.location.href;
-  if (currentUrl !== lastUrl) {
-    lastUrl = currentUrl;
-    console.log('[Hotel Extension] URL changed to:', currentUrl);
-    updateCurrentBookingId();
-  }
-}).observe(document.body, { childList: true, subtree: true });
+if (document.body) {
+  new MutationObserver(() => {
+    const currentUrl = window.location.href;
+    if (currentUrl !== lastUrl) {
+      lastUrl = currentUrl;
+      console.log('[Hotel Extension] URL changed to:', currentUrl);
+      updateCurrentBookingId();
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+} else {
+  // Wait for document.body to be available
+  document.addEventListener('DOMContentLoaded', () => {
+    new MutationObserver(() => {
+      const currentUrl = window.location.href;
+      if (currentUrl !== lastUrl) {
+        lastUrl = currentUrl;
+        console.log('[Hotel Extension] URL changed to:', currentUrl);
+        updateCurrentBookingId();
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+}
 
 // Log for debugging
 console.log('Hotel Number Four - Booking Assistant extension loaded');

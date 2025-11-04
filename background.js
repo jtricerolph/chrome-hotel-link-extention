@@ -50,7 +50,33 @@ async function checkBookingPage(url, tabId) {
       if (response.ok) {
         const data = await response.json();
 
-        // Check if there are any warnings
+        // Also fetch HTML version for the popup
+        const htmlResponse = await fetch(apiEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            booking_id: parseInt(bookingId),
+            context: 'chrome-extension'
+          })
+        });
+
+        let htmlData = null;
+        if (htmlResponse.ok) {
+          htmlData = await htmlResponse.json();
+        }
+
+        // Cache both JSON (for logic) and HTML (for popup display)
+        chrome.storage.local.set({
+          cachedBookingData: data,
+          cachedBookingHtml: htmlData,
+          cachedBookingId: bookingId,
+          cachedTimestamp: Date.now()
+        });
+
+        // Check for warnings and package alerts
+        let hasPackageAlert = false;
         let hasWarnings = false;
 
         if (data.success && data.bookings && data.bookings.length > 0) {
@@ -58,24 +84,32 @@ async function checkBookingPage(url, tabId) {
 
           for (const night of booking.nights) {
             const matchCount = night.match_count || 0;
+            const hasPackage = night.has_package || false;
 
-            if (matchCount > 1) {
+            // Check for package booking without restaurant reservation (CRITICAL)
+            if (hasPackage && matchCount === 0) {
+              hasPackageAlert = true;
+              break;  // Package alert is most critical
+            }
+            // Check for other warnings
+            else if (matchCount > 1) {
               // Multiple matches found - this is a warning
               hasWarnings = true;
-              break;
             } else if (matchCount === 1 && night.resos_bookings) {
               // Check if it's not a primary match
               const match = night.resos_bookings[0];
               if (!match.is_primary) {
                 hasWarnings = true;
-                break;
               }
             }
           }
         }
 
-        // Set badge based on warnings
-        if (hasWarnings) {
+        // Set badge based on severity (package alert > warnings > success)
+        if (hasPackageAlert) {
+          chrome.action.setBadgeText({ text: '🍽️', tabId: tabId });
+          chrome.action.setBadgeBackgroundColor({ color: '#ef4444', tabId: tabId });
+        } else if (hasWarnings) {
           chrome.action.setBadgeText({ text: '⚠', tabId: tabId });
           chrome.action.setBadgeBackgroundColor({ color: '#f59e0b', tabId: tabId });
         } else {
@@ -83,8 +117,9 @@ async function checkBookingPage(url, tabId) {
           chrome.action.setBadgeBackgroundColor({ color: '#10b981', tabId: tabId });
         }
 
-        // Auto-open popup if API says to (package booking without restaurant reservation)
-        if (data.should_auto_open) {
+        // Auto-open popup if there are any warnings or critical alerts
+        // OR if API explicitly says to auto-open (package booking without reservation)
+        if (data.should_auto_open || hasPackageAlert || hasWarnings) {
           try {
             await chrome.action.openPopup();
           } catch (error) {

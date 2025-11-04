@@ -29,8 +29,14 @@ async function loadBookingData() {
   try {
     showState('loading');
 
-    // Get current booking ID from storage
-    const result = await chrome.storage.local.get(['currentBookingId', 'settings']);
+    // Get current booking ID and cached data from storage
+    const result = await chrome.storage.local.get([
+      'currentBookingId',
+      'settings',
+      'cachedBookingHtml',
+      'cachedBookingId',
+      'cachedTimestamp'
+    ]);
 
     if (!result.currentBookingId) {
       showState('notOnBookingPage');
@@ -39,25 +45,40 @@ async function loadBookingData() {
 
     const bookingId = result.currentBookingId;
     const settings = result.settings || {};
-    const apiEndpoint = settings.apiEndpoint || 'https://admin.hotelnumberfour.com/api/check-booking';
+    const apiEndpoint = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
     const adminBaseUrl = settings.adminBaseUrl || 'https://admin.hotelnumberfour.com/booking';
 
-    // Fetch data from admin API
-    const data = await fetchBookingData(apiEndpoint, bookingId);
+    let data;
+
+    // Check if we have cached HTML for this booking
+    const cacheMaxAge = 60000; // 60 seconds
+    const isCacheValid = result.cachedBookingHtml &&
+                        result.cachedBookingId === bookingId &&
+                        result.cachedTimestamp &&
+                        (Date.now() - result.cachedTimestamp) < cacheMaxAge;
+
+    if (isCacheValid) {
+      console.log('Using cached booking HTML');
+      data = result.cachedBookingHtml;
+    } else {
+      console.log('Fetching fresh booking data');
+      // Fetch fresh HTML from API
+      data = await fetchBookingData(apiEndpoint, bookingId);
+    }
 
     // Display the response
-    if (data.html) {
-      // API returned HTML to display
+    if (data && data.html) {
+      // Display HTML
       displayApiHtml(data.html);
-    } else if (data.hasMatches === false || data.matches === 0) {
-      // No matches found, show link to admin
-      showNoMatches(bookingId, adminBaseUrl);
-    } else if (data.error) {
+    } else if (data && data.success && data.bookings && data.bookings.length > 0) {
+      // Fallback for JSON response
+      displayApiHtml('<div class="bma-result"><p>Booking found</p></div>');
+    } else if (data && data.error) {
       // API returned an error
       showError(data.error);
     } else {
-      // Unexpected response format
-      showError('Unexpected response from admin API');
+      // No matches or unexpected response
+      showNoMatches(bookingId, adminBaseUrl);
     }
 
   } catch (error) {
@@ -66,29 +87,24 @@ async function loadBookingData() {
   }
 }
 
-// Fetch booking data from admin API
+// Fetch booking data from API (for fresh data when cache is stale)
 async function fetchBookingData(apiEndpoint, bookingId) {
-  const response = await fetch(`${apiEndpoint}?booking_id=${bookingId}`, {
-    method: 'GET',
+  const response = await fetch(apiEndpoint, {
+    method: 'POST',
     headers: {
-      'Accept': 'application/json, text/html'
-    }
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      booking_id: parseInt(bookingId),
+      context: 'chrome-extension'  // Request HTML format for display
+    })
   });
 
   if (!response.ok) {
     throw new Error(`API Error: ${response.status} ${response.statusText}`);
   }
 
-  const contentType = response.headers.get('content-type');
-
-  if (contentType && contentType.includes('application/json')) {
-    return await response.json();
-  } else if (contentType && contentType.includes('text/html')) {
-    const html = await response.text();
-    return { html: html };
-  } else {
-    throw new Error('Unsupported response format from API');
-  }
+  return await response.json();
 }
 
 // Display HTML from API
