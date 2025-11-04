@@ -19,7 +19,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 });
 
 // Check if the current page is a booking page
-function checkBookingPage(url, tabId) {
+async function checkBookingPage(url, tabId) {
   const match = url.match(BOOKING_URL_PATTERN);
 
   if (match) {
@@ -31,9 +31,68 @@ function checkBookingPage(url, tabId) {
       currentBookingUrl: url
     });
 
-    // Update badge to indicate extension is active on this page
-    chrome.action.setBadgeText({ text: '✓', tabId: tabId });
-    chrome.action.setBadgeBackgroundColor({ color: '#10b981', tabId: tabId });
+    // Check booking status via API to determine badge
+    try {
+      const settings = await chrome.storage.local.get(['settings']);
+      const apiEndpoint = settings.settings?.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
+
+      const response = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          booking_id: parseInt(bookingId),
+          context: 'json'
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // Check if there are any warnings
+        let hasWarnings = false;
+
+        if (data.success && data.bookings && data.bookings.length > 0) {
+          const booking = data.bookings[0];
+
+          for (const night of booking.nights) {
+            const matchCount = night.match_count || 0;
+
+            if (matchCount > 1) {
+              // Multiple matches found - this is a warning
+              hasWarnings = true;
+              break;
+            } else if (matchCount === 1 && night.resos_bookings) {
+              // Check if it's not a primary match
+              const match = night.resos_bookings[0];
+              if (!match.is_primary) {
+                hasWarnings = true;
+                break;
+              }
+            }
+          }
+        }
+
+        // Set badge based on warnings
+        if (hasWarnings) {
+          chrome.action.setBadgeText({ text: '⚠', tabId: tabId });
+          chrome.action.setBadgeBackgroundColor({ color: '#f59e0b', tabId: tabId });
+        } else {
+          chrome.action.setBadgeText({ text: '✓', tabId: tabId });
+          chrome.action.setBadgeBackgroundColor({ color: '#10b981', tabId: tabId });
+        }
+      } else {
+        // API error, show neutral badge
+        chrome.action.setBadgeText({ text: '?', tabId: tabId });
+        chrome.action.setBadgeBackgroundColor({ color: '#6b7280', tabId: tabId });
+      }
+    } catch (error) {
+      console.error('Error checking booking status:', error);
+      // On error, just show active badge
+      chrome.action.setBadgeText({ text: '✓', tabId: tabId });
+      chrome.action.setBadgeBackgroundColor({ color: '#10b981', tabId: tabId });
+    }
   } else {
     // Clear badge if not on a booking page
     chrome.action.setBadgeText({ text: '', tabId: tabId });
