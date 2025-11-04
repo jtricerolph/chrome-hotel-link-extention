@@ -242,6 +242,11 @@ async function handleBookingDialog(dialogElement) {
   // Mark as processed
   dialogElement.dataset.hotelExtensionProcessed = 'true';
 
+  // Store the current booking ID for the extension popup
+  chrome.storage.local.set({ currentBookingId: bookingId }, () => {
+    console.log('[Hotel Extension] Stored currentBookingId from popup:', bookingId);
+  });
+
   // Find the dialog content area
   const contentArea = dialogElement.querySelector('.ui-dialog-content');
   if (!contentArea) return;
@@ -544,6 +549,48 @@ if (document.readyState === 'loading') {
 } else {
   detectAndHandleBookingPopup();
 }
+
+// ============================================================================
+// DETECT CURRENT PAGE AND UPDATE STORAGE
+// ============================================================================
+// Detect if we're on a booking page and store the booking ID for the popup
+
+function updateCurrentBookingId() {
+  console.log('[Hotel Extension] Checking current page URL:', window.location.href);
+
+  // Check if we're on a booking_view page
+  const urlMatch = window.location.href.match(/\/bookings_view\/(\d+)/);
+
+  if (urlMatch) {
+    const bookingId = urlMatch[1];
+    console.log('[Hotel Extension] ✓ On booking page, ID:', bookingId);
+
+    // Store the current booking ID for the extension popup
+    chrome.storage.local.set({ currentBookingId: bookingId }, () => {
+      console.log('[Hotel Extension] Stored currentBookingId:', bookingId);
+    });
+  } else {
+    // Not on a booking page, clear the stored ID
+    console.log('[Hotel Extension] Not on a booking page');
+    chrome.storage.local.remove('currentBookingId', () => {
+      console.log('[Hotel Extension] Cleared currentBookingId');
+    });
+  }
+}
+
+// Update on page load
+updateCurrentBookingId();
+
+// Watch for URL changes (for single-page app navigation)
+let lastUrl = window.location.href;
+new MutationObserver(() => {
+  const currentUrl = window.location.href;
+  if (currentUrl !== lastUrl) {
+    lastUrl = currentUrl;
+    console.log('[Hotel Extension] URL changed to:', currentUrl);
+    updateCurrentBookingId();
+  }
+}).observe(document.body, { childList: true, subtree: true });
 
 // Log for debugging
 console.log('Hotel Number Four - Booking Assistant extension loaded');
