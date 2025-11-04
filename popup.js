@@ -46,18 +46,25 @@ async function loadBookingData() {
     const data = await fetchBookingData(apiEndpoint, bookingId);
 
     // Display the response
-    if (data.html) {
-      // API returned HTML to display
+    if (typeof data === 'string') {
+      // API returned HTML directly (chrome-extension context)
+      displayApiHtml(data);
+    } else if (data.html) {
+      // API returned HTML in JSON
       displayApiHtml(data.html);
-    } else if (data.hasMatches === false || data.matches === 0) {
-      // No matches found, show link to admin
-      showNoMatches(bookingId, adminBaseUrl);
-    } else if (data.error) {
+    } else if (data.code && data.message) {
+      // WordPress API error response
+      showError(data.message);
+    } else if (data.success === false || data.error) {
       // API returned an error
-      showError(data.error);
+      showError(data.error || data.message || 'API Error');
+    } else if (data.bookings_found === 0) {
+      // No bookings found
+      showNoMatches(bookingId, adminBaseUrl);
     } else {
-      // Unexpected response format
-      showError('Unexpected response from admin API');
+      // Unexpected response format - show raw data for debugging
+      showError('Unexpected response format from API');
+      console.log('API Response:', data);
     }
 
   } catch (error) {
@@ -68,11 +75,16 @@ async function loadBookingData() {
 
 // Fetch booking data from admin API
 async function fetchBookingData(apiEndpoint, bookingId) {
-  const response = await fetch(`${apiEndpoint}?booking_id=${bookingId}`, {
-    method: 'GET',
+  const response = await fetch(apiEndpoint, {
+    method: 'POST',
     headers: {
+      'Content-Type': 'application/json',
       'Accept': 'application/json, text/html'
-    }
+    },
+    body: JSON.stringify({
+      booking_id: parseInt(bookingId),
+      context: 'chrome-extension'
+    })
   });
 
   if (!response.ok) {

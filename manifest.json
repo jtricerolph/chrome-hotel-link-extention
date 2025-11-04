@@ -10,7 +10,7 @@
   ],
   "host_permissions": [
     "https://appeu.newbook.cloud/*",
-    "https://admin.hotelnumberfour.com/*"
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -19,6 +19,7 @@
     "default_popup": "popup.html",
     "default_title": "Hotel Booking Assistant"
   },
+  "options_page": "options.html",
   "content_scripts": [
     {
       "matches": ["https://appeu.newbook.cloud/*"],
