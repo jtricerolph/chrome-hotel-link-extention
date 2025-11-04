@@ -583,6 +583,7 @@ async function injectRowIntoTable(table, bookingId) {
   let buttonText = 'View Restaurant Bookings';
   let buttonUrl = `${adminBaseUrl}/booking/${bookingId}`;
   let buttonClass = '';
+  let primaryMatch = null;
 
   // Check if there are matches
   if (data.success && data.bookings && data.bookings.length > 0) {
@@ -598,6 +599,14 @@ async function injectRowIntoTable(table, bookingId) {
         const match = night.resos_bookings[0];
         if (match.is_primary) {
           hasMatch = true;
+          // Store the first primary match for ResOS link
+          if (!primaryMatch) {
+            primaryMatch = {
+              resos_booking_id: match.resos_booking_id,
+              restaurant_id: match.restaurant_id,
+              booking_date: night.date
+            };
+          }
         } else {
           hasSuggestedMatch = true;
         }
@@ -619,6 +628,25 @@ async function injectRowIntoTable(table, bookingId) {
     }
   }
 
+  // Build the buttons HTML
+  let buttonsHtml = `
+    <a href="${buttonUrl}" class="hotel-extension-restaurant-button ${buttonClass}" target="_blank" style="display: inline-block; padding: 6px 12px; background: #4a90e2; color: white; text-decoration: none; border-radius: 4px; font-size: 13px; margin-right: 8px;">
+      <i class="far fa-utensils fa-fw" style="vertical-align: middle; font-size: 14px; margin-right: 4px;"></i>
+      ${buttonText}
+    </a>
+  `;
+
+  // Add ResOS button if there's a primary match
+  if (primaryMatch && primaryMatch.resos_booking_id && primaryMatch.restaurant_id && primaryMatch.booking_date) {
+    const resosUrl = `https://app.resos.com/${primaryMatch.restaurant_id}/bookings/timetable/${primaryMatch.booking_date}/${primaryMatch.resos_booking_id}`;
+    buttonsHtml += `
+      <a href="${resosUrl}" class="hotel-extension-resos-button" target="_blank" style="display: inline-block; padding: 6px 12px; background: #10b981; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
+        <i class="far fa-external-link fa-fw" style="vertical-align: middle; font-size: 14px; margin-right: 4px;"></i>
+        View in ResOS
+      </a>
+    `;
+  }
+
   // Create the new row
   const newRow = document.createElement('tr');
   const rowCount = tbody.querySelectorAll('tr').length;
@@ -629,10 +657,7 @@ async function injectRowIntoTable(table, bookingId) {
       <label class="fieldset_label">Restaurant</label>
     </td>
     <td class="view_value" style="width: 65%;">
-      <a href="${buttonUrl}" class="hotel-extension-restaurant-button ${buttonClass}" target="_blank" style="display: inline-block; padding: 6px 12px; background: #4a90e2; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
-        <i class="far fa-utensils fa-fw" style="vertical-align: middle; font-size: 14px; margin-right: 4px;"></i>
-        ${buttonText}
-      </a>
+      ${buttonsHtml}
     </td>
   `;
 
@@ -690,6 +715,7 @@ async function injectButtonIntoPane(buttonPane, bookingId) {
   let buttonText = 'Restaurant';
   let buttonIcon = 'fa-utensils';
   let buttonUrl = `${adminBaseUrl}/booking/${bookingId}`;
+  let primaryMatch = null;
 
   // Check if there are matches
   if (data.success && data.bookings && data.bookings.length > 0) {
@@ -705,6 +731,14 @@ async function injectButtonIntoPane(buttonPane, bookingId) {
         const match = night.resos_bookings[0];
         if (match.is_primary) {
           hasMatch = true;
+          // Store the first primary match for ResOS link
+          if (!primaryMatch) {
+            primaryMatch = {
+              resos_booking_id: match.resos_booking_id,
+              restaurant_id: match.restaurant_id,
+              booking_date: night.date
+            };
+          }
         } else {
           hasSuggestedMatch = true;
         }
@@ -723,7 +757,7 @@ async function injectButtonIntoPane(buttonPane, bookingId) {
     }
   }
 
-  // Create the button (matching NewBook's button style)
+  // Create the admin button (matching NewBook's button style)
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'ui-button ui-corner-all ui-widget hotel-extension-restaurant-btn';
@@ -738,15 +772,45 @@ async function injectButtonIntoPane(buttonPane, bookingId) {
     window.open(buttonUrl, '_blank');
   });
 
-  // Insert button before the Close button (which is typically last)
+  // Find the Close button position
   const closeButton = buttonPane.querySelector('button:last-child');
+
+  // Insert admin button before the Close button
   if (closeButton) {
     buttonPane.insertBefore(button, closeButton);
   } else {
     buttonPane.appendChild(button);
   }
 
-  console.log('[Hotel Extension] Restaurant button injected into dialog');
+  // Add ResOS button if there's a primary match
+  if (primaryMatch && primaryMatch.resos_booking_id && primaryMatch.restaurant_id && primaryMatch.booking_date) {
+    const resosUrl = `https://app.resos.com/${primaryMatch.restaurant_id}/bookings/timetable/${primaryMatch.booking_date}/${primaryMatch.resos_booking_id}`;
+
+    const resosButton = document.createElement('button');
+    resosButton.type = 'button';
+    resosButton.className = 'ui-button ui-corner-all ui-widget hotel-extension-resos-btn';
+    resosButton.style.cssText = 'background-color: #10b981; border-color: #10b981;';
+    resosButton.innerHTML = `
+      <span class="ui-button-icon ui-icon fa-external-link"></span>
+      <span class="ui-button-icon-space"> </span>
+      View in ResOS
+    `;
+
+    resosButton.addEventListener('click', () => {
+      window.open(resosUrl, '_blank');
+    });
+
+    // Insert ResOS button before the Close button (after admin button)
+    if (closeButton) {
+      buttonPane.insertBefore(resosButton, closeButton);
+    } else {
+      buttonPane.appendChild(resosButton);
+    }
+
+    console.log('[Hotel Extension] Restaurant and ResOS buttons injected into dialog');
+  } else {
+    console.log('[Hotel Extension] Restaurant button injected into dialog');
+  }
 }
 
 function injectRestaurantInfoIntoDialog(firstFieldset, data, bookingId) {
@@ -904,6 +968,7 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
   let buttonText = 'Restaurant';
   let buttonIcon = 'fa-utensils';
   let buttonUrl = `${adminBaseUrl}/booking/${bookingId}`;
+  let primaryMatch = null;
 
   // Check if there are matches
   if (data.success && data.bookings && data.bookings.length > 0) {
@@ -919,6 +984,14 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
         const match = night.resos_bookings[0];
         if (match.is_primary) {
           hasMatch = true;
+          // Store the first primary match for ResOS link
+          if (!primaryMatch) {
+            primaryMatch = {
+              resos_booking_id: match.resos_booking_id,
+              restaurant_id: match.restaurant_id,
+              booking_date: night.date
+            };
+          }
         } else {
           hasSuggestedMatch = true;
         }
@@ -940,7 +1013,19 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
     }
   }
 
-  // Create the menu item (matching NewBook's style)
+  // Find the "Options" menu item to insert before it
+  const menuItems = contextMenu.querySelectorAll('li');
+  let optionsItem = null;
+
+  for (const item of menuItems) {
+    const linkText = item.textContent.trim();
+    if (linkText.includes('Options') || linkText.includes('options')) {
+      optionsItem = item;
+      break;
+    }
+  }
+
+  // Create the admin menu item (matching NewBook's style)
   const menuItem = document.createElement('li');
   menuItem.className = 'hotel-extension-restaurant-menu-item';
 
@@ -960,18 +1045,6 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
 
   menuItem.appendChild(link);
 
-  // Find the "Options" menu item to insert before it
-  const menuItems = contextMenu.querySelectorAll('li');
-  let optionsItem = null;
-
-  for (const item of menuItems) {
-    const linkText = item.textContent.trim();
-    if (linkText.includes('Options') || linkText.includes('options')) {
-      optionsItem = item;
-      break;
-    }
-  }
-
   // Insert before Options, or at the end if Options not found
   if (optionsItem) {
     contextMenu.insertBefore(menuItem, optionsItem);
@@ -979,6 +1052,38 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
   } else {
     contextMenu.appendChild(menuItem);
     console.log('[Hotel Extension] Appended Restaurant button to', position, 'context menu');
+  }
+
+  // Add ResOS menu item if there's a primary match
+  if (primaryMatch && primaryMatch.resos_booking_id && primaryMatch.restaurant_id && primaryMatch.booking_date) {
+    const resosUrl = `https://app.resos.com/${primaryMatch.restaurant_id}/bookings/timetable/${primaryMatch.booking_date}/${primaryMatch.resos_booking_id}`;
+
+    const resosMenuItem = document.createElement('li');
+    resosMenuItem.className = 'hotel-extension-resos-menu-item';
+
+    const resosLink = document.createElement('a');
+    resosLink.href = resosUrl;
+    resosLink.target = '_blank';
+    resosLink.innerHTML = `
+      <i class="far fa-external-link fa-fw" style="margin-right: 8px;"></i>
+      View in ResOS
+    `;
+
+    resosLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.open(resosUrl, '_blank');
+    });
+
+    resosMenuItem.appendChild(resosLink);
+
+    // Insert ResOS menu item after the admin menu item
+    if (optionsItem) {
+      contextMenu.insertBefore(resosMenuItem, optionsItem);
+      console.log('[Hotel Extension] Inserted ResOS button before Options in', position, 'context menu');
+    } else {
+      contextMenu.appendChild(resosMenuItem);
+      console.log('[Hotel Extension] Appended ResOS button to', position, 'context menu');
+    }
   }
 }
 
