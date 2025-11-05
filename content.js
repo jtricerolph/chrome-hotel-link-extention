@@ -913,11 +913,20 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   const data = await fetchRestaurantBookingDataJSON(bookingId);
 
   console.log('[Hotel Extension] API response:', data ? 'SUCCESS' : 'FAILED');
+  console.log('[Hotel Extension] API data:', {
+    hasData: !!data,
+    success: data?.success,
+    hasBookings: !!data?.bookings,
+    bookingsLength: data?.bookings?.length,
+    dataKeys: data ? Object.keys(data) : []
+  });
+
   if (!data || !data.success || !data.bookings || data.bookings.length === 0) {
-    console.log('[Hotel Extension] No valid booking data received');
+    console.log('[Hotel Extension] Data validation failed - No valid booking data received');
     return;
   }
 
+  console.log('[Hotel Extension] Data validation passed, processing booking...');
   const booking = data.bookings[0];
 
   if (!booking.nights || booking.nights.length === 0) {
