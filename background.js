@@ -125,10 +125,10 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
       // Set badge based on severity (package alert > warnings > success)
       if (tabId) {
         if (hasPackageAlert) {
-          chrome.action.setBadgeText({ text: '🍽️', tabId: tabId });
+          chrome.action.setBadgeText({ text: '!', tabId: tabId });
           chrome.action.setBadgeBackgroundColor({ color: '#ef4444', tabId: tabId });
         } else if (hasWarnings) {
-          chrome.action.setBadgeText({ text: '⚠', tabId: tabId });
+          chrome.action.setBadgeText({ text: 'W', tabId: tabId });
           chrome.action.setBadgeBackgroundColor({ color: '#f59e0b', tabId: tabId });
         } else {
           chrome.action.setBadgeText({ text: '✓', tabId: tabId });
