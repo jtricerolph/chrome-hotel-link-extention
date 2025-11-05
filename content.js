@@ -14,6 +14,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Try to find booking_id from the clicked element or nearby context
     const bookingId = findBookingIdFromContext();
     sendResponse({ bookingId: bookingId });
+  } else if (request.action === 'getCurrentBookingId') {
+    // Check if there's a booking dialog currently visible
+    const bookingId = getCurrentVisibleBookingId();
+    sendResponse({ bookingId: bookingId });
   }
   return true;
 });
@@ -41,6 +45,41 @@ function findBookingIdFromContext() {
     return dataBookingElements[0].getAttribute('data-booking-id');
   }
 
+  return null;
+}
+
+// Function to get booking ID from currently visible booking dialog/popup
+function getCurrentVisibleBookingId() {
+  // Check for visible jQuery UI dialogs with booking information
+  const visibleDialogs = document.querySelectorAll('.ui-dialog');
+
+  for (const dialog of visibleDialogs) {
+    // Skip hidden dialogs
+    if (dialog.style.display === 'none' || dialog.offsetParent === null) {
+      continue;
+    }
+
+    // Look for the booking title in the dialog header
+    const titleElement = dialog.querySelector('.ui-dialog-title');
+    if (titleElement) {
+      const titleText = titleElement.textContent;
+      const bookingMatch = titleText.match(/Booking #(\d+)/);
+
+      if (bookingMatch) {
+        console.log('[Hotel Extension] getCurrentVisibleBookingId found:', bookingMatch[1]);
+        return bookingMatch[1];
+      }
+    }
+  }
+
+  // If not found in dialogs, fall back to checking URL
+  const urlMatch = window.location.href.match(/\/bookings_view\/(\d+)/);
+  if (urlMatch) {
+    console.log('[Hotel Extension] getCurrentVisibleBookingId from URL:', urlMatch[1]);
+    return urlMatch[1];
+  }
+
+  console.log('[Hotel Extension] getCurrentVisibleBookingId found nothing');
   return null;
 }
 

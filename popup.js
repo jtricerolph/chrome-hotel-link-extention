@@ -31,6 +31,24 @@ async function loadBookingData() {
   try {
     showState('loading');
 
+    // First, check if there's a booking dialog currently visible on the active tab
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs[0]) {
+      try {
+        const response = await chrome.tabs.sendMessage(tabs[0].id, {
+          action: 'getCurrentBookingId'
+        });
+
+        if (response && response.bookingId) {
+          console.log('Popup - Found current booking from tab:', response.bookingId);
+          // Update storage with current booking ID
+          await chrome.storage.local.set({ currentBookingId: response.bookingId });
+        }
+      } catch (error) {
+        console.log('Popup - Could not get current booking from tab (normal if not on NewBook):', error.message);
+      }
+    }
+
     // Get current booking ID and cached data from storage
     const result = await chrome.storage.local.get([
       'currentBookingId',
