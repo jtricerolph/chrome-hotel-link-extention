@@ -489,6 +489,7 @@ function injectRestaurantInfoIntoTooltip(firstFieldset, data, bookingId) {
   firstFieldset.parentNode.insertBefore(container, firstFieldset.nextSibling);
 }
 
+// Fetch HTML response for popup display
 async function fetchRestaurantBookingData(bookingId) {
   try {
     // Get settings
@@ -496,7 +497,7 @@ async function fetchRestaurantBookingData(bookingId) {
     const settings = result.settings || {};
     const apiEndpoint = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
 
-    console.log('[Hotel Extension] === API REQUEST DEBUG ===');
+    console.log('[Hotel Extension] === API REQUEST DEBUG (HTML) ===');
     console.log('[Hotel Extension] API Endpoint:', apiEndpoint);
     console.log('[Hotel Extension] Booking ID:', bookingId);
     console.log('[Hotel Extension] Request body:', JSON.stringify({
@@ -539,6 +540,40 @@ async function fetchRestaurantBookingData(bookingId) {
   } catch (error) {
     console.error('[Hotel Extension] Error fetching from API:', error);
     console.error('[Hotel Extension] Error stack:', error.stack);
+    return null;
+  }
+}
+
+// Fetch JSON response with structured bookings data for table injection
+async function fetchRestaurantBookingDataJSON(bookingId) {
+  try {
+    const result = await chrome.storage.local.get(['settings']);
+    const settings = result.settings || {};
+    const apiEndpoint = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
+
+    console.log('[Hotel Extension] Fetching JSON data for booking:', bookingId);
+
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        booking_id: parseInt(bookingId),
+        context: 'json'  // Request JSON format with bookings array
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('[Hotel Extension] API returned error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log('[Hotel Extension] JSON API Response:', data);
+    return data;
+  } catch (error) {
+    console.error('[Hotel Extension] Error fetching JSON from API:', error);
     return null;
   }
 }
@@ -900,8 +935,8 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
     return;
   }
 
-  // Fetch booking data from API
-  const data = await fetchRestaurantBookingData(bookingId);
+  // Fetch booking data from API - use JSON context for structured data
+  const data = await fetchRestaurantBookingDataJSON(bookingId);
 
   console.log('[Hotel Extension] API response data:', data);
   console.log('[Hotel Extension] Data structure check:', {
