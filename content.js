@@ -1100,6 +1100,42 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   tbody.appendChild(newRow);
   console.log('[Hotel Extension] Restaurant row successfully inserted!');
 
+  // Set up observer to watch for table being replaced/modified by NewBook
+  // In SPAs, content often loads async and can remove our injected row
+  const tableObserver = new MutationObserver((mutations) => {
+    const currentRow = tbody.querySelector('tr[data-hotel-extension="restaurant"]');
+    if (!currentRow) {
+      console.log('[Hotel Extension] Restaurant row was removed, re-injecting...');
+      tableObserver.disconnect(); // Disconnect to avoid infinite loop
+      injectRowIntoFullBookingTable(table, bookingId); // Re-inject
+    }
+  });
+
+  tableObserver.observe(tbody, {
+    childList: true,
+    subtree: false
+  });
+
+  // Also watch for the table itself being replaced
+  const tableParent = table.parentNode;
+  if (tableParent) {
+    const parentObserver = new MutationObserver((mutations) => {
+      const currentTable = document.querySelector('.pretty_table.fieldset_table');
+      if (currentTable && currentTable !== table) {
+        console.log('[Hotel Extension] Table was replaced, re-injecting into new table...');
+        parentObserver.disconnect();
+        injectRowIntoFullBookingTable(currentTable, bookingId);
+      } else if (!currentTable) {
+        console.log('[Hotel Extension] Table was removed from DOM');
+      }
+    });
+
+    parentObserver.observe(tableParent, {
+      childList: true,
+      subtree: true
+    });
+  }
+
   } catch (error) {
     console.error('[Hotel Extension] Fatal error in injectRowIntoFullBookingTable:', error.message);
     console.error('[Hotel Extension] Stack trace:', error.stack);
