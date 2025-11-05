@@ -594,6 +594,12 @@ async function fetchRestaurantBookingData(bookingId) {
 // Fetch JSON response with structured bookings data for table injection
 async function fetchRestaurantBookingDataJSON(bookingId) {
   try {
+    // Check if extension is still valid
+    if (!isExtensionValid()) {
+      console.warn('[Hotel Extension] Extension invalidated, skipping API call');
+      return null;
+    }
+
     const result = await chrome.storage.local.get(['settings']);
     const settings = result.settings || {};
     const apiEndpoint = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
@@ -622,7 +628,13 @@ async function fetchRestaurantBookingDataJSON(bookingId) {
     console.log('[Hotel Extension] Parsed API response:', data);
     return data;
   } catch (error) {
-    console.error('[Hotel Extension] Error fetching JSON from API:', error);
+    // Check for extension context invalidation
+    if (error.message && error.message.includes('Extension context invalidated')) {
+      extensionInvalidated = true;
+      console.warn('[Hotel Extension] Extension context invalidated - page refresh required');
+    } else {
+      console.error('[Hotel Extension] Error fetching JSON from API:', error);
+    }
     return null;
   }
 }
@@ -1800,6 +1812,23 @@ setInterval(() => {
   }
 }, 500); // Check every 500ms
 
+// Track if extension context is invalidated (happens when extension reloads)
+let extensionInvalidated = false;
+
+// Check if extension context is still valid
+function isExtensionValid() {
+  if (extensionInvalidated) return false;
+
+  // Check if chrome.runtime is accessible
+  if (!chrome.runtime?.id) {
+    extensionInvalidated = true;
+    console.warn('[Hotel Extension] Extension context invalidated - stopping all operations. Please refresh the page.');
+    return false;
+  }
+
+  return true;
+}
+
 // Preload Material Symbols font early to prevent icons showing as text
 if (!document.querySelector('link[href*="Material+Symbols+Outlined"]')) {
   const fontLink = document.createElement('link');
@@ -1821,6 +1850,12 @@ console.log('Hotel Number Four - Booking Assistant extension loaded');
 let reinjectionInProgress = false; // Prevent concurrent re-injections
 
 const globalTableObserver = new MutationObserver((mutations) => {
+  // Check if extension is still valid
+  if (!isExtensionValid()) {
+    globalTableObserver.disconnect();
+    return;
+  }
+
   // Only run if we're on a booking view page
   const urlMatch = window.location.href.match(/\/bookings_view\/(\d+)/);
   if (!urlMatch) return;
