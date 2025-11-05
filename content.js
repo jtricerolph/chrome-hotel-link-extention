@@ -880,6 +880,16 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   // Fetch booking data from API
   const data = await fetchRestaurantBookingData(bookingId);
 
+  console.log('[Hotel Extension] API response data:', data);
+  console.log('[Hotel Extension] Data structure check:', {
+    hasData: !!data,
+    hasSuccess: data?.success,
+    hasBookings: !!data?.bookings,
+    bookingsLength: data?.bookings?.length,
+    bookingsType: typeof data?.bookings,
+    dataKeys: data ? Object.keys(data) : []
+  });
+
   if (!data || !data.success || !data.bookings || data.bookings.length === 0) {
     console.log('[Hotel Extension] No booking data or nights found');
     return;
