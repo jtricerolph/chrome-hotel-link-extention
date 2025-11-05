@@ -1100,6 +1100,20 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   tbody.appendChild(newRow);
   console.log('[Hotel Extension] Restaurant row successfully inserted!');
 
+  // Verify insertion
+  setTimeout(() => {
+    const checkRow = tbody.querySelector('tr[data-hotel-extension="restaurant"]');
+    if (checkRow) {
+      console.log('[Hotel Extension] Verification: Row still exists in DOM after 1 second');
+      console.log('[Hotel Extension] Row HTML:', checkRow.outerHTML.substring(0, 200));
+      console.log('[Hotel Extension] Row is visible:', checkRow.offsetHeight > 0);
+      console.log('[Hotel Extension] Row parent:', checkRow.parentElement);
+      console.log('[Hotel Extension] Total rows in tbody:', tbody.querySelectorAll('tr').length);
+    } else {
+      console.log('[Hotel Extension] WARNING: Row was removed from DOM within 1 second!');
+    }
+  }, 1000);
+
   // Set up observer to watch for table being replaced/modified by NewBook
   // In SPAs, content often loads async and can remove our injected row
   const tableObserver = new MutationObserver((mutations) => {
