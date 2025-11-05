@@ -1701,10 +1701,29 @@ const globalTableObserver = new MutationObserver((mutations) => {
   }
 });
 
-// Start observing the entire document body for table changes
-globalTableObserver.observe(document.body, {
-  childList: true,
-  subtree: true
-});
+// Start observing once document.body is available
+function startGlobalObserver() {
+  if (document.body) {
+    globalTableObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    console.log('[Hotel Extension] Global table replacement observer started');
+  } else {
+    // Wait for DOM to be ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        globalTableObserver.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+        console.log('[Hotel Extension] Global table replacement observer started');
+      });
+    } else {
+      // ReadyState not loading but body still doesn't exist - retry shortly
+      setTimeout(startGlobalObserver, 50);
+    }
+  }
+}
 
-console.log('[Hotel Extension] Global table replacement observer started');
+startGlobalObserver();
