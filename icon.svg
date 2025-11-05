@@ -2,32 +2,24 @@
   <!-- Background square with rounded corners -->
   <rect x="4" y="4" width="120" height="120" rx="20" fill="#2c3e50"/>
 
-  <!-- Simplified fork and knife icon -->
+  <!-- Restaurant/Dining icon - larger and simpler -->
   <g fill="#ffffff">
-    <!-- Fork (left) -->
+    <!-- Fork (left side) -->
     <g>
       <!-- Fork prongs -->
-      <rect x="35" y="40" width="3" height="20" rx="1"/>
-      <rect x="42" y="40" width="3" height="20" rx="1"/>
-      <rect x="49" y="40" width="3" height="20" rx="1"/>
+      <rect x="25" y="30" width="6" height="32" rx="2"/>
+      <rect x="36" y="30" width="6" height="32" rx="2"/>
+      <rect x="47" y="30" width="6" height="32" rx="2"/>
       <!-- Fork handle -->
-      <rect x="38" y="60" width="11" height="28" rx="2"/>
+      <rect x="31" y="62" width="16" height="36" rx="3"/>
     </g>
 
-    <!-- Knife (center-right) -->
+    <!-- Knife (right side) -->
     <g>
       <!-- Knife blade -->
-      <path d="M 65 40 L 73 40 L 71 60 L 67 60 Z"/>
+      <path d="M 75 30 L 90 30 L 87 62 L 78 62 Z"/>
       <!-- Knife handle -->
-      <rect x="67" y="60" width="7" height="28" rx="2"/>
-    </g>
-
-    <!-- Spoon (right) -->
-    <g>
-      <!-- Spoon bowl -->
-      <ellipse cx="88" cy="48" rx="6" ry="8"/>
-      <!-- Spoon handle -->
-      <rect x="85" y="55" width="6" height="33" rx="2"/>
+      <rect x="79" y="62" width="11" height="36" rx="3"/>
     </g>
   </g>
 </svg>
