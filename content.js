@@ -781,7 +781,7 @@ async function injectRowIntoTable(table, bookingId) {
           color: '#ef4444',
           icon: 'add',
           text: dateShort,
-          time: null,
+          time: 'Create',
           tooltip: 'URGENT: Package booking - Create restaurant reservation',
           url: night.deep_link
         });
@@ -846,7 +846,7 @@ async function injectRowIntoTable(table, bookingId) {
           color: '#10b981',
           icon: 'add',
           text: dateShort,
-          time: null,
+          time: 'Create',
           tooltip: 'No match - Create new reservation',
           url: night.deep_link
         });
@@ -1258,7 +1258,7 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
         color: '#ef4444',
         icon: 'add',
         text: dateShort,
-        time: null,
+        time: 'Create',
         tooltip: 'URGENT: Package booking - Create restaurant reservation',
         url: night.deep_link
       });
@@ -1323,7 +1323,7 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
         color: '#10b981',
         icon: 'add',
         text: dateShort,
-        time: null,
+        time: 'Create',
         tooltip: 'No match - Create new reservation',
         url: night.deep_link
       });
