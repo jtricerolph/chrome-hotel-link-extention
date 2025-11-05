@@ -173,7 +173,7 @@ function detectAndHandleBookingPopup() {
     mutations.forEach((mutation) => {
       mutation.addedNodes.forEach((node) => {
         if (node.nodeType === 1) { // Element node
-          console.log('[Hotel Extension] Node added:', node.className);
+          // console.log('[Hotel Extension] Node added:', node.className); // Disabled - too noisy
 
           // Format 1: Full jQuery UI dialog
           if (node.classList && node.classList.contains('ui-dialog')) {
