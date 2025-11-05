@@ -141,25 +141,19 @@ function detectAndHandleBookingPopup() {
 
   // Check for existing dialogs that might already be on the page
   const checkExistingDialogs = () => {
-    console.log('[Hotel Extension] Checking for existing dialogs...');
-
     // Check for jQuery UI dialogs
     const existingDialogs = document.querySelectorAll('.ui-dialog');
-    console.log('[Hotel Extension] Found', existingDialogs.length, 'existing ui-dialog elements');
     existingDialogs.forEach(dialog => {
       // Only handle visible dialogs
       if (dialog.style.display !== 'none') {
-        console.log('[Hotel Extension] Found visible ui-dialog, processing...');
         handleBookingDialog(dialog);
       }
     });
 
     // Check for easyToolTip popups
     const existingTooltips = document.querySelectorAll('.easyToolTip');
-    console.log('[Hotel Extension] Found', existingTooltips.length, 'existing easyToolTip elements');
     existingTooltips.forEach(tooltip => {
       if (tooltip.style.display !== 'none') {
-        console.log('[Hotel Extension] Found visible easyToolTip, processing...');
         handleEasyToolTipBooking(tooltip);
       }
     });
@@ -177,28 +171,20 @@ function detectAndHandleBookingPopup() {
 
           // Format 1: Full jQuery UI dialog
           if (node.classList && node.classList.contains('ui-dialog')) {
-            console.log('[Hotel Extension] Found ui-dialog via mutation');
             handleBookingDialog(node);
           }
 
           // Format 2: EasyToolTip compact popup
           if (node.classList && node.classList.contains('easyToolTip')) {
-            console.log('[Hotel Extension] Found easyToolTip via mutation');
             handleEasyToolTipBooking(node);
           }
 
           // Also check children in case elements are nested
           if (node.querySelectorAll) {
             const dialogs = node.querySelectorAll('.ui-dialog');
-            if (dialogs.length > 0) {
-              console.log('[Hotel Extension] Found', dialogs.length, 'ui-dialog children');
-            }
             dialogs.forEach(dialog => handleBookingDialog(dialog));
 
             const tooltips = node.querySelectorAll('.easyToolTip');
-            if (tooltips.length > 0) {
-              console.log('[Hotel Extension] Found', tooltips.length, 'easyToolTip children');
-            }
             tooltips.forEach(tooltip => handleEasyToolTipBooking(tooltip));
           }
         }
@@ -209,7 +195,6 @@ function detectAndHandleBookingPopup() {
         const target = mutation.target;
         if (target.classList && target.classList.contains('ui-dialog')) {
           if (target.style.display !== 'none') {
-            console.log('[Hotel Extension] ui-dialog became visible');
             handleBookingDialog(target);
           }
         }
@@ -551,8 +536,6 @@ async function fetchRestaurantBookingDataJSON(bookingId) {
     const settings = result.settings || {};
     const apiEndpoint = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
 
-    console.log('[Hotel Extension] Fetching JSON data for booking:', bookingId);
-
     const response = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
@@ -565,12 +548,10 @@ async function fetchRestaurantBookingDataJSON(bookingId) {
     });
 
     if (!response.ok) {
-      console.warn('[Hotel Extension] API returned error:', response.status);
       return null;
     }
 
     const data = await response.json();
-    console.log('[Hotel Extension] JSON API Response:', data);
     return data;
   } catch (error) {
     console.error('[Hotel Extension] Error fetching JSON from API:', error);
@@ -839,25 +820,17 @@ if (document.readyState === 'loading') {
 // ============================================================================
 
 async function injectRestaurantRowIntoFullBookingView(bookingId) {
-  console.log('[Hotel Extension] ===== FULL VIEW TABLE INJECTION START =====');
-  console.log('[Hotel Extension] Booking ID:', bookingId);
-
   // Check if document.body exists
   if (!document.body) {
-    console.log('[Hotel Extension] document.body not available yet, readyState:', document.readyState);
     // Wait for DOMContentLoaded and try again
     if (document.readyState === 'loading') {
-      console.log('[Hotel Extension] Adding DOMContentLoaded listener');
       document.addEventListener('DOMContentLoaded', () => {
-        console.log('[Hotel Extension] DOMContentLoaded fired, retrying injection');
         injectRestaurantRowIntoFullBookingView(bookingId);
       });
     } else {
       // ReadyState is not 'loading' but body still doesn't exist
       // Wait a short time and try again
-      console.log('[Hotel Extension] Using setTimeout to wait for body');
       setTimeout(() => {
-        console.log('[Hotel Extension] setTimeout fired, retrying injection');
         injectRestaurantRowIntoFullBookingView(bookingId);
       }, 100);
     }
@@ -868,17 +841,14 @@ async function injectRestaurantRowIntoFullBookingView(bookingId) {
   // (NewBook is a single-page app, body persists across navigation)
 
   // Try to find the booking details table
-  console.log('[Hotel Extension] Looking for booking details table...');
   let table = document.querySelector('.pretty_table.fieldset_table');
 
   if (!table) {
-    console.log('[Hotel Extension] Table not found yet, setting up observer...');
 
     // Set up observer to wait for table to load
     const tableObserver = new MutationObserver((mutations) => {
       const foundTable = document.querySelector('.pretty_table.fieldset_table');
       if (foundTable) {
-        console.log('[Hotel Extension] Table found via observer');
         tableObserver.disconnect();
         injectRowIntoFullBookingTable(foundTable, bookingId);
       }
@@ -893,11 +863,9 @@ async function injectRestaurantRowIntoFullBookingView(bookingId) {
     setTimeout(() => {
       const foundTable = document.querySelector('.pretty_table.fieldset_table');
       if (foundTable) {
-        console.log('[Hotel Extension] Table found via timeout check');
         tableObserver.disconnect();
         injectRowIntoFullBookingTable(foundTable, bookingId);
       } else {
-        console.log('[Hotel Extension] Timeout: No booking details table found');
         tableObserver.disconnect();
       }
     }, 3000);
@@ -905,59 +873,41 @@ async function injectRestaurantRowIntoFullBookingView(bookingId) {
     return;
   }
 
-  console.log('[Hotel Extension] Table found immediately, injecting restaurant row...');
   await injectRowIntoFullBookingTable(table, bookingId);
 }
 
 // Helper function to inject row into full booking view table (5-column format)
 async function injectRowIntoFullBookingTable(table, bookingId) {
-  console.log('[Hotel Extension] Injecting row into full booking table for ID:', bookingId);
-
   // Ensure Material Symbols font is loaded
   if (!document.querySelector('link[href*="Material+Symbols+Outlined"]')) {
     const fontLink = document.createElement('link');
     fontLink.rel = 'stylesheet';
     fontLink.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200';
     document.head.appendChild(fontLink);
-    console.log('[Hotel Extension] Loaded Material Symbols font');
   }
 
   // Find tbody
   const tbody = table.querySelector('tbody');
   if (!tbody) {
-    console.log('[Hotel Extension] No tbody found in table');
     return;
   }
 
   // Check if row already exists
   const existingRow = tbody.querySelector('tr[data-hotel-extension="restaurant"]');
   if (existingRow) {
-    console.log('[Hotel Extension] Restaurant row already exists, skipping');
     return;
   }
 
   // Fetch booking data from API - use JSON context for structured data
   const data = await fetchRestaurantBookingDataJSON(bookingId);
 
-  console.log('[Hotel Extension] API response data:', data);
-  console.log('[Hotel Extension] Data structure check:', {
-    hasData: !!data,
-    hasSuccess: data?.success,
-    hasBookings: !!data?.bookings,
-    bookingsLength: data?.bookings?.length,
-    bookingsType: typeof data?.bookings,
-    dataKeys: data ? Object.keys(data) : []
-  });
-
   if (!data || !data.success || !data.bookings || data.bookings.length === 0) {
-    console.log('[Hotel Extension] No booking data or nights found');
     return;
   }
 
   const booking = data.bookings[0];
 
   if (!booking.nights || booking.nights.length === 0) {
-    console.log('[Hotel Extension] No nights found in booking');
     return;
   }
 
@@ -1056,7 +1006,6 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   }).join('');
 
   if (!buttonsHtml) {
-    console.log('[Hotel Extension] No buttons to show');
     return;
   }
 
@@ -1081,7 +1030,6 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
 
   // Insert the row at the end of the table
   tbody.appendChild(newRow);
-  console.log('[Hotel Extension] Restaurant row with', booking.nights?.length || 0, 'night buttons injected into full view table');
 }
 
 // ============================================================================
@@ -1388,50 +1336,33 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
 // Detect if we're on a booking page and store the booking ID for the popup
 
 function updateCurrentBookingId() {
-  console.log('[Hotel Extension] === updateCurrentBookingId START ===');
-  console.log('[Hotel Extension] Checking current page URL:', window.location.href);
-
-  // Check if extension context is still valid
-  if (!chrome.runtime?.id) {
-    console.log('[Hotel Extension] Extension context invalidated, skipping update');
-    return;
-  }
-  console.log('[Hotel Extension] Extension context is valid');
-
   // Check if we're on a booking_view page
   const urlMatch = window.location.href.match(/\/bookings_view\/(\d+)/);
-  console.log('[Hotel Extension] URL regex match result:', urlMatch);
 
   if (urlMatch) {
     const bookingId = urlMatch[1];
-    console.log('[Hotel Extension] On booking page, ID:', bookingId);
 
     // Store the current booking ID for the extension popup
     try {
       chrome.storage.local.set({ currentBookingId: bookingId });
-      console.log('[Hotel Extension] Stored currentBookingId:', bookingId);
     } catch (error) {
-      console.log('[Hotel Extension] Failed to store booking ID (extension may have been reloaded):', error.message);
+      // Extension may have been reloaded, ignore
     }
 
     // Inject Restaurant row into the booking details table
     injectRestaurantRowIntoFullBookingView(bookingId);
   } else {
     // Not on a booking page, clear the stored ID
-    console.log('[Hotel Extension] Not on a booking page');
     try {
       chrome.storage.local.remove('currentBookingId');
-      console.log('[Hotel Extension] Cleared currentBookingId');
     } catch (error) {
-      console.log('[Hotel Extension] Failed to clear booking ID (extension may have been reloaded):', error.message);
+      // Extension may have been reloaded, ignore
     }
   }
 }
 
 // Update on page load
-console.log('[Hotel Extension] About to call updateCurrentBookingId on page load');
 updateCurrentBookingId();
-console.log('[Hotel Extension] updateCurrentBookingId completed');
 
 // Watch for URL changes (for single-page app navigation)
 let lastUrl = window.location.href;
@@ -1440,7 +1371,6 @@ if (document.body) {
     const currentUrl = window.location.href;
     if (currentUrl !== lastUrl) {
       lastUrl = currentUrl;
-      console.log('[Hotel Extension] URL changed to:', currentUrl);
       updateCurrentBookingId();
     }
   }).observe(document.body, { childList: true, subtree: true });
@@ -1451,7 +1381,6 @@ if (document.body) {
       const currentUrl = window.location.href;
       if (currentUrl !== lastUrl) {
         lastUrl = currentUrl;
-        console.log('[Hotel Extension] URL changed to:', currentUrl);
         updateCurrentBookingId();
       }
     }).observe(document.body, { childList: true, subtree: true });
