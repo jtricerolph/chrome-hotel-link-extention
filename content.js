@@ -1828,13 +1828,28 @@ function isExtensionValid() {
 }
 
 // Preload Material Symbols font early to prevent icons showing as text
-if (!document.querySelector('link[href*="Material+Symbols+Outlined"]')) {
-  const fontLink = document.createElement('link');
-  fontLink.rel = 'stylesheet';
-  fontLink.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap';
-  document.head.appendChild(fontLink);
-  console.log('[Hotel Extension] Material Symbols font preloaded');
+function preloadMaterialSymbolsFont() {
+  if (!document.head) {
+    // Wait for document.head to be available
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', preloadMaterialSymbolsFont);
+    } else {
+      setTimeout(preloadMaterialSymbolsFont, 10);
+    }
+    return;
+  }
+
+  if (!document.querySelector('link[href*="Material+Symbols+Outlined"]')) {
+    const fontLink = document.createElement('link');
+    fontLink.rel = 'stylesheet';
+    fontLink.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap';
+    document.head.appendChild(fontLink);
+    console.log('[Hotel Extension] Material Symbols font preloaded');
+  }
 }
+
+// Call immediately
+preloadMaterialSymbolsFont();
 
 // Log for debugging
 console.log('Hotel Number Four - Booking Assistant extension loaded');
