@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Chrome with Extension",
+      "type": "chrome",
+      "request": "launch",
+      "url": "https://appeu.newbook.cloud/",
+      "webRoot": "${workspaceFolder}",
+      "runtimeArgs": [
+        "--disable-extensions-except=${workspaceFolder}",
+        "--load-extension=${workspaceFolder}"
+      ],
+      "userDataDir": "${workspaceFolder}/.vscode/chrome-debug-profile",
+      "sourceMaps": true
+    },
+    {
+      "name": "Attach to Chrome",
+      "type": "chrome",
+      "request": "attach",
+      "port": 9222,
+      "urlFilter": "*",
+      "webRoot": "${workspaceFolder}"
+    }
+  ]
+}
