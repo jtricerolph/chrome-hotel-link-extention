@@ -1109,6 +1109,27 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
       console.log('[Hotel Extension] Row is visible:', checkRow.offsetHeight > 0);
       console.log('[Hotel Extension] Row parent:', checkRow.parentElement);
       console.log('[Hotel Extension] Total rows in tbody:', tbody.querySelectorAll('tr').length);
+
+      // Check computed styles
+      const computedStyle = window.getComputedStyle(checkRow);
+      console.log('[Hotel Extension] Row computed styles:', {
+        display: computedStyle.display,
+        visibility: computedStyle.visibility,
+        height: computedStyle.height,
+        maxHeight: computedStyle.maxHeight,
+        overflow: computedStyle.overflow,
+        opacity: computedStyle.opacity
+      });
+
+      // Check table styles
+      const tableStyle = window.getComputedStyle(table);
+      console.log('[Hotel Extension] Table computed styles:', {
+        display: tableStyle.display,
+        visibility: tableStyle.visibility,
+        height: tableStyle.height,
+        maxHeight: tableStyle.maxHeight,
+        overflow: tableStyle.overflow
+      });
     } else {
       console.log('[Hotel Extension] WARNING: Row was removed from DOM within 1 second!');
     }
