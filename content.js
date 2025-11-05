@@ -781,6 +781,7 @@ async function injectRowIntoTable(table, bookingId) {
           color: '#ef4444',
           icon: 'add',
           text: dateShort,
+          time: null,
           tooltip: 'URGENT: Package booking - Create restaurant reservation',
           url: night.deep_link
         });
@@ -793,6 +794,7 @@ async function injectRowIntoTable(table, bookingId) {
               color: '#60a5fa',
               icon: 'visibility',
               text: `${dateShort}`,
+              time: match.time || null,
               tooltip: 'Primary match - View in ResOS',
               url: match.restaurant_id && match.resos_booking_id
                 ? `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`
@@ -805,6 +807,7 @@ async function injectRowIntoTable(table, bookingId) {
               color: '#f59e0b',
               icon: 'search',
               text: `${dateShort}`,
+              time: match.time || null,
               tooltip: 'Suggested match - Review booking',
               url: match.deep_link
             });
@@ -818,6 +821,7 @@ async function injectRowIntoTable(table, bookingId) {
             color: '#60a5fa',
             icon: 'visibility',
             text: dateShort,
+            time: match.time || null,
             tooltip: 'Primary match - View in ResOS',
             url: match.restaurant_id && match.resos_booking_id
               ? `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`
@@ -830,6 +834,7 @@ async function injectRowIntoTable(table, bookingId) {
             color: '#f59e0b',
             icon: 'search',
             text: dateShort,
+            time: match.time || null,
             tooltip: 'Suggested match - Review booking',
             url: match.deep_link
           });
@@ -841,6 +846,7 @@ async function injectRowIntoTable(table, bookingId) {
           color: '#10b981',
           icon: 'add',
           text: dateShort,
+          time: null,
           tooltip: 'No match - Create new reservation',
           url: night.deep_link
         });
@@ -855,11 +861,14 @@ async function injectRowIntoTable(table, bookingId) {
              class="hotel-extension-night-button"
              target="_blank"
              title="${btn.tooltip}"
-             style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; margin: 2px; background-color: ${btn.color}; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: opacity 0.2s; white-space: nowrap;"
+             style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; margin: 2px; background-color: ${btn.color}; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: opacity 0.2s;"
              onmouseover="this.style.opacity='0.8'"
              onmouseout="this.style.opacity='1'">
             <span class="material-symbols-outlined" style="font-size: 16px;">${btn.icon}</span>
-            <span>${btn.text}</span>
+            <span style="display: flex; flex-direction: column; line-height: 1.1;">
+              <span style="white-space: nowrap;">${btn.text}</span>
+              ${btn.time ? `<span style="font-size: 10px; opacity: 0.9; white-space: nowrap;">${btn.time}</span>` : ''}
+            </span>
           </a>
         `;
       });
@@ -1249,6 +1258,7 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
         color: '#ef4444',
         icon: 'add',
         text: dateShort,
+        time: null,
         tooltip: 'URGENT: Package booking - Create restaurant reservation',
         url: night.deep_link
       });
@@ -1261,6 +1271,7 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
             color: '#60a5fa',
             icon: 'visibility',
             text: `${dateShort}`,
+            time: match.time || null,
             tooltip: 'Primary match - View in ResOS',
             url: match.restaurant_id && match.resos_booking_id
               ? `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`
@@ -1273,6 +1284,7 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
             color: '#f59e0b',
             icon: 'search',
             text: `${dateShort}`,
+            time: match.time || null,
             tooltip: 'Suggested match - Review booking',
             url: match.deep_link
           });
@@ -1286,6 +1298,7 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
           color: '#60a5fa',
           icon: 'visibility',
           text: dateShort,
+          time: match.time || null,
           tooltip: 'Primary match - View in ResOS',
           url: match.restaurant_id && match.resos_booking_id
             ? `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`
@@ -1298,6 +1311,7 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
           color: '#f59e0b',
           icon: 'search',
           text: dateShort,
+          time: match.time || null,
           tooltip: 'Suggested match - Review booking',
           url: match.deep_link
         });
@@ -1309,6 +1323,7 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
         color: '#10b981',
         icon: 'add',
         text: dateShort,
+        time: null,
         tooltip: 'No match - Create new reservation',
         url: night.deep_link
       });
@@ -1319,11 +1334,14 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
       <a href="${btn.url}"
          target="_blank"
          title="${btn.tooltip}"
-         style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; margin: 2px; background-color: ${btn.color}; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: opacity 0.2s;"
+         style="display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; margin: 2px; background-color: ${btn.color}; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: opacity 0.2s;"
          onmouseover="this.style.opacity='0.8'"
          onmouseout="this.style.opacity='1'">
         <span class="material-symbols-outlined" style="font-size: 16px;">${btn.icon}</span>
-        <span>${btn.text}</span>
+        <span style="display: flex; flex-direction: column; line-height: 1.1;">
+          <span style="white-space: nowrap;">${btn.text}</span>
+          ${btn.time ? `<span style="font-size: 10px; opacity: 0.9; white-space: nowrap;">${btn.time}</span>` : ''}
+        </span>
       </a>
     `).join('');
   }).join('');
