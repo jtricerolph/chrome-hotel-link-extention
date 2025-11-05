@@ -2,8 +2,32 @@
   <!-- Background square with rounded corners -->
   <rect x="4" y="4" width="120" height="120" rx="20" fill="#2c3e50"/>
 
-  <!-- Material UI Flatware icon (properly transformed) -->
-  <g transform="translate(64, 64) scale(0.065, -0.065) translate(-480, -480)">
-    <path fill="#ffffff" d="M200-120v-411q-33 0-56.5-23.5T120-611v-206q0-9 7-16t16-7q9 0 16.5 7t7.5 16v142h40v-142q0-9 7-16t16-7q9 0 16 7t7 16v142h40v-142q0-9 7.5-16t16.5-7q9 0 16 7t7 16v206q0 33-23.5 56.5T260-531v411h-60Zm280 0v-413q-41-23-62-62t-21-90q0-60 30.5-107.5T511-840q53 0 83.5 47.5T625-685q0 51-22 90t-63 62v413h-60Zm214 0v-720q58 5 102 45.5T840-694v244h-86v330h-60Z"/>
+  <!-- Simplified fork and knife icon -->
+  <g fill="#ffffff">
+    <!-- Fork (left) -->
+    <g>
+      <!-- Fork prongs -->
+      <rect x="35" y="40" width="3" height="20" rx="1"/>
+      <rect x="42" y="40" width="3" height="20" rx="1"/>
+      <rect x="49" y="40" width="3" height="20" rx="1"/>
+      <!-- Fork handle -->
+      <rect x="38" y="60" width="11" height="28" rx="2"/>
+    </g>
+
+    <!-- Knife (center-right) -->
+    <g>
+      <!-- Knife blade -->
+      <path d="M 65 40 L 73 40 L 71 60 L 67 60 Z"/>
+      <!-- Knife handle -->
+      <rect x="67" y="60" width="7" height="28" rx="2"/>
+    </g>
+
+    <!-- Spoon (right) -->
+    <g>
+      <!-- Spoon bowl -->
+      <ellipse cx="88" cy="48" rx="6" ry="8"/>
+      <!-- Spoon handle -->
+      <rect x="85" y="55" width="6" height="33" rx="2"/>
+    </g>
   </g>
 </svg>
