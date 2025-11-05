@@ -312,7 +312,7 @@ async function handleEasyToolTipBooking(tooltipElement) {
   // Mark as "pending" to prevent duplicate processing
   tooltipElement.dataset.hotelExtensionPending = 'true';
 
-  // Add a 500ms delay before processing - only process if tooltip is still visible
+  // Add a 1000ms delay before processing API call - only process if tooltip is still visible
   // This prevents API bombardment when quickly moving mouse across the planner
   setTimeout(async () => {
     // Check if tooltip still exists and is visible
@@ -333,7 +333,7 @@ async function handleEasyToolTipBooking(tooltipElement) {
     tooltipElement.dataset.hotelExtensionProcessed = 'true';
     delete tooltipElement.dataset.hotelExtensionPending;
 
-    console.log('[Hotel Extension] Tooltip remained visible, processing booking:', bookingId);
+    console.log('[Hotel Extension] Tooltip remained visible for 1s, processing booking:', bookingId);
 
     // Store the current booking ID for the extension popup
     if (chrome.runtime?.id) {
@@ -345,23 +345,40 @@ async function handleEasyToolTipBooking(tooltipElement) {
       }
     }
 
-    // Trigger the extension popup for alerts/warnings
-    console.log('[Hotel Extension] Sending message to background to check booking and trigger popup if needed...');
-    if (chrome.runtime?.id) {
-      try {
-        chrome.runtime.sendMessage({
-          action: 'checkBookingFromDialog',
-          bookingId: bookingId
-        });
-        console.log('[Hotel Extension] Message sent to background script');
-      } catch (error) {
-        console.error('[Hotel Extension] Failed to send message to background:', error);
-      }
-    }
-
-    // Also inject a Restaurant row into the table for quick access
+    // Inject a Restaurant row into the table for quick access (at 1000ms)
     await injectRestaurantRowIntoTooltip(tooltipElement, bookingId);
-  }, 500); // 500ms delay
+
+    // Trigger the extension popup for alerts/warnings with additional delay (2000ms total)
+    // This prevents popup spam when quickly scanning bookings
+    setTimeout(() => {
+      // Check again if tooltip is still visible before triggering popup
+      if (!document.body.contains(tooltipElement)) {
+        console.log('[Hotel Extension] Tooltip removed before popup trigger, skipping popup');
+        return;
+      }
+
+      const stillVisible = tooltipElement.style.display !== 'none' &&
+                          tooltipElement.offsetParent !== null;
+
+      if (!stillVisible) {
+        console.log('[Hotel Extension] Tooltip no longer visible, skipping popup');
+        return;
+      }
+
+      console.log('[Hotel Extension] Tooltip remained visible for 2s, triggering popup check...');
+      if (chrome.runtime?.id) {
+        try {
+          chrome.runtime.sendMessage({
+            action: 'checkBookingFromDialog',
+            bookingId: bookingId
+          });
+          console.log('[Hotel Extension] Message sent to background script');
+        } catch (error) {
+          console.error('[Hotel Extension] Failed to send message to background:', error);
+        }
+      }
+    }, 1000); // Additional 1000ms delay (2000ms total from initial hover)
+  }, 1000); // 1000ms delay for API call
 }
 
 async function injectRestaurantInfoAsTab(tabContent, bookingId) {
