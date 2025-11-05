@@ -521,6 +521,8 @@ async function fetchRestaurantBookingData(bookingId) {
 }
 
 async function injectRestaurantRowIntoTooltip(tooltipElement, bookingId) {
+  console.log('[Hotel Extension] Looking for table in tooltip, innerHTML length:', tooltipElement.innerHTML.length);
+
   // Find the table in the tooltip - try multiple selectors
   let table = tooltipElement.querySelector('.pretty_table.fieldset_table');
 
@@ -535,13 +537,13 @@ async function injectRestaurantRowIntoTooltip(tooltipElement, bookingId) {
   }
 
   if (!table) {
-    console.log('[Hotel Extension] No table found in tooltip, waiting for content...');
+    console.log('[Hotel Extension] No table found in tooltip immediately. Tooltip has', tooltipElement.children.length, 'children. Waiting for content...');
 
     // Table hasn't loaded yet - watch for it
     const tableObserver = new MutationObserver((mutations) => {
       table = tooltipElement.querySelector('table');
       if (table) {
-        console.log('[Hotel Extension] Table found, injecting restaurant row...');
+        console.log('[Hotel Extension] Table found via MutationObserver, injecting restaurant row...');
         tableObserver.disconnect();
         injectRowIntoTable(table, bookingId);
       }
@@ -551,6 +553,16 @@ async function injectRestaurantRowIntoTooltip(tooltipElement, bookingId) {
       childList: true,
       subtree: true
     });
+
+    // Also try again after a short delay
+    setTimeout(() => {
+      table = tooltipElement.querySelector('table');
+      if (table && !table.querySelector('.hotel-extension-restaurant-button')) {
+        console.log('[Hotel Extension] Table found via timeout, injecting restaurant row...');
+        tableObserver.disconnect();
+        injectRowIntoTable(table, bookingId);
+      }
+    }, 500);
 
     return;
   }
@@ -667,21 +679,45 @@ async function injectRowIntoTable(table, bookingId) {
 }
 
 async function injectRestaurantButtonIntoDialog(dialogElement, bookingId) {
+  console.log('[Hotel Extension] Looking for button pane in dialog...');
+  console.log('[Hotel Extension] Dialog element classes:', dialogElement.className);
+  console.log('[Hotel Extension] Dialog has', dialogElement.children.length, 'children');
+
   // Find the button pane in the dialog
   let buttonPane = dialogElement.querySelector('.ui-dialog-buttonpane .ui-dialog-buttonset');
 
   if (!buttonPane) {
-    console.log('[Hotel Extension] No button pane found yet, waiting for it to load...');
+    console.log('[Hotel Extension] No button pane found immediately. Checking what elements exist...');
+
+    // Log all divs with ui-dialog in class name
+    const dialogDivs = dialogElement.querySelectorAll('div[class*="ui-dialog"]');
+    console.log('[Hotel Extension] Found', dialogDivs.length, 'divs with ui-dialog in class name');
+    dialogDivs.forEach((div, index) => {
+      console.log(`[Hotel Extension]   Div ${index}:`, div.className);
+    });
+
+    // Try finding just the button pane without buttonset
+    const buttonPaneOnly = dialogElement.querySelector('.ui-dialog-buttonpane');
+    if (buttonPaneOnly) {
+      console.log('[Hotel Extension] Found button pane without buttonset, children:', buttonPaneOnly.children.length);
+      console.log('[Hotel Extension] Button pane HTML:', buttonPaneOnly.innerHTML.substring(0, 200));
+    }
 
     // Button pane hasn't loaded yet - watch for it
     const buttonPaneObserver = new MutationObserver((mutations) => {
       buttonPane = dialogElement.querySelector('.ui-dialog-buttonpane .ui-dialog-buttonset');
       if (buttonPane) {
-        console.log('[Hotel Extension] Button pane loaded, injecting restaurant button...');
+        console.log('[Hotel Extension] Button pane loaded via observer, injecting restaurant button...');
         buttonPaneObserver.disconnect();
 
         // Now inject the button
         injectButtonIntoPane(buttonPane, bookingId);
+      } else {
+        // Check if at least button pane appeared
+        const paneOnly = dialogElement.querySelector('.ui-dialog-buttonpane');
+        if (paneOnly) {
+          console.log('[Hotel Extension] Button pane appeared but no buttonset yet, innerHTML:', paneOnly.innerHTML.substring(0, 200));
+        }
       }
     });
 
@@ -689,6 +725,22 @@ async function injectRestaurantButtonIntoDialog(dialogElement, bookingId) {
       childList: true,
       subtree: true
     });
+
+    // Add timeout fallback
+    setTimeout(() => {
+      buttonPane = dialogElement.querySelector('.ui-dialog-buttonpane .ui-dialog-buttonset');
+      if (buttonPane && !buttonPane.querySelector('.hotel-extension-restaurant-btn')) {
+        console.log('[Hotel Extension] Button pane found via timeout, injecting...');
+        buttonPaneObserver.disconnect();
+        injectButtonIntoPane(buttonPane, bookingId);
+      } else {
+        console.log('[Hotel Extension] Timeout: Still no button pane found');
+        const paneOnly = dialogElement.querySelector('.ui-dialog-buttonpane');
+        if (paneOnly) {
+          console.log('[Hotel Extension] Timeout: But button pane exists without buttonset:', paneOnly.innerHTML);
+        }
+      }
+    }, 1000);
 
     return;
   }
@@ -897,20 +949,37 @@ async function injectRestaurantButtonsIntoContextMenus(bookingId) {
   // Mark as processed for this booking ID
   document.body.dataset.hotelExtensionContextMenusProcessed = bookingId;
 
-  // Try to find the context menus
-  let headerMenu = document.getElementById('context-menu-header');
-  let footerMenu = document.getElementById('context-menu-footer');
+  // Try to find the context menus - NewBook uses UL elements with classes like "context-menu-header-*"
+  console.log('[Hotel Extension] Looking for context menus...');
+
+  // Find all UL elements with context-menu in class name
+  const allContextMenus = document.querySelectorAll('ul[class*="context-menu"]');
+  console.log('[Hotel Extension] Found', allContextMenus.length, 'UL elements with context-menu in class');
+  allContextMenus.forEach((menu, index) => {
+    console.log(`[Hotel Extension]   Menu ${index}:`, menu.className, 'id:', menu.id || '(none)');
+  });
+
+  // Try different selectors
+  let headerMenu = document.querySelector('ul[class^="context-menu-header"]') ||
+                   document.getElementById('context-menu-header');
+  let footerMenu = document.querySelector('ul[class^="context-menu-footer"]') ||
+                   document.getElementById('context-menu-footer');
+
+  console.log('[Hotel Extension] Header menu found:', !!headerMenu);
+  console.log('[Hotel Extension] Footer menu found:', !!footerMenu);
 
   if (!headerMenu && !footerMenu) {
     console.log('[Hotel Extension] Context menus not found yet, waiting for them to load...');
 
     // Watch for context menus to appear
     const menuObserver = new MutationObserver((mutations) => {
-      headerMenu = document.getElementById('context-menu-header');
-      footerMenu = document.getElementById('context-menu-footer');
+      headerMenu = document.querySelector('ul[class^="context-menu-header"]') ||
+                   document.getElementById('context-menu-header');
+      footerMenu = document.querySelector('ul[class^="context-menu-footer"]') ||
+                   document.getElementById('context-menu-footer');
 
       if (headerMenu || footerMenu) {
-        console.log('[Hotel Extension] Context menu(s) found, injecting buttons...');
+        console.log('[Hotel Extension] Context menu(s) found via observer, injecting buttons...');
         menuObserver.disconnect();
 
         // Inject into whichever menus were found
@@ -928,12 +997,25 @@ async function injectRestaurantButtonsIntoContextMenus(bookingId) {
     setTimeout(() => {
       menuObserver.disconnect();
       console.log('[Hotel Extension] Stopped waiting for context menus (timeout)');
+
+      // One last check
+      const finalHeaderMenu = document.querySelector('ul[class^="context-menu-header"]');
+      const finalFooterMenu = document.querySelector('ul[class^="context-menu-footer"]');
+
+      if (finalHeaderMenu || finalFooterMenu) {
+        console.log('[Hotel Extension] Found context menus on final check!');
+        if (finalHeaderMenu) injectButtonIntoContextMenu(finalHeaderMenu, bookingId, 'header');
+        if (finalFooterMenu) injectButtonIntoContextMenu(finalFooterMenu, bookingId, 'footer');
+      } else {
+        console.log('[Hotel Extension] Still no context menus found after timeout');
+      }
     }, 10000);
 
     return;
   }
 
   // Context menus found immediately, inject buttons
+  console.log('[Hotel Extension] Context menus found immediately, injecting buttons...');
   if (headerMenu) {
     await injectButtonIntoContextMenu(headerMenu, bookingId, 'header');
   }
