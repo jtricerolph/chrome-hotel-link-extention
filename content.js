@@ -1124,7 +1124,7 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   if (!document.querySelector('link[href*="Material+Symbols+Outlined"]')) {
     const fontLink = document.createElement('link');
     fontLink.rel = 'stylesheet';
-    fontLink.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200';
+    fontLink.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap';
     document.head.appendChild(fontLink);
   }
 
