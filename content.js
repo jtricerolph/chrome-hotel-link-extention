@@ -1224,6 +1224,7 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
 // Detect if we're on a booking page and store the booking ID for the popup
 
 function updateCurrentBookingId() {
+  console.log('[Hotel Extension] === updateCurrentBookingId START ===');
   console.log('[Hotel Extension] Checking current page URL:', window.location.href);
 
   // Check if extension context is still valid
@@ -1231,9 +1232,11 @@ function updateCurrentBookingId() {
     console.log('[Hotel Extension] Extension context invalidated, skipping update');
     return;
   }
+  console.log('[Hotel Extension] Extension context is valid');
 
   // Check if we're on a booking_view page
   const urlMatch = window.location.href.match(/\/bookings_view\/(\d+)/);
+  console.log('[Hotel Extension] URL regex match result:', urlMatch);
 
   if (urlMatch) {
     const bookingId = urlMatch[1];
@@ -1265,7 +1268,9 @@ function updateCurrentBookingId() {
 }
 
 // Update on page load
+console.log('[Hotel Extension] About to call updateCurrentBookingId on page load');
 updateCurrentBookingId();
+console.log('[Hotel Extension] updateCurrentBookingId completed');
 
 // Watch for URL changes (for single-page app navigation)
 let lastUrl = window.location.href;
