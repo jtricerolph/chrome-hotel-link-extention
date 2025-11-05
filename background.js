@@ -204,6 +204,41 @@ async function migratePasswordSpaces() {
   }
 }
 
+// Function to ensure API host permissions are granted
+async function ensureAPIPermissions() {
+  return new Promise((resolve) => {
+    chrome.permissions.contains(
+      { origins: ['https://admin.hotelnumberfour.com/*', 'https://n4admindev.pterois.co.uk/*'] },
+      (hasPermissions) => {
+        if (!hasPermissions) {
+          console.log('[Background] API host permissions missing, requesting...');
+          chrome.permissions.request(
+            { origins: ['https://admin.hotelnumberfour.com/*', 'https://n4admindev.pterois.co.uk/*'] },
+            (granted) => {
+              if (granted) {
+                console.log('[Background] API host permissions granted');
+                resolve(true);
+              } else {
+                console.error('[Background] API host permissions denied - extension will not work properly');
+                resolve(false);
+              }
+            }
+          );
+        } else {
+          console.log('[Background] API host permissions already granted');
+          resolve(true);
+        }
+      }
+    );
+  });
+}
+
+// Check permissions on every extension startup
+chrome.runtime.onStartup.addListener(() => {
+  console.log('[Background] Extension startup - checking permissions...');
+  ensureAPIPermissions();
+});
+
 // Context menu setup (for future right-click feature)
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -233,6 +268,9 @@ chrome.runtime.onInstalled.addListener(() => {
 
   // Run password migration
   migratePasswordSpaces();
+
+  // Request optional host permissions for API endpoints
+  ensureAPIPermissions();
 });
 
 // Handle context menu clicks

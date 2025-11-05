@@ -9,7 +9,9 @@
     "contextMenus"
   ],
   "host_permissions": [
-    "https://appeu.newbook.cloud/*",
+    "https://appeu.newbook.cloud/*"
+  ],
+  "optional_host_permissions": [
     "https://admin.hotelnumberfour.com/*",
     "https://n4admindev.pterois.co.uk/*"
   ],
