@@ -1192,6 +1192,20 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
       console.log('[Hotel Extension] Row parent:', checkRow.parentElement);
       console.log('[Hotel Extension] Total rows in tbody:', tbody.querySelectorAll('tr').length);
 
+      // Check which table is NOW visible (may have changed!)
+      const allTablesNow = document.querySelectorAll('.pretty_table.fieldset_table');
+      console.log('[Hotel Extension] Tables after injection:', allTablesNow.length, 'total');
+      allTablesNow.forEach((t, idx) => {
+        const tRect = t.getBoundingClientRect();
+        const hasOurRow = t.querySelector('tr[data-hotel-extension="restaurant"]');
+        console.log(`[Hotel Extension] Table ${idx} after injection:`, {
+          width: tRect.width,
+          height: tRect.height,
+          isVisible: tRect.width > 0 && tRect.height > 0,
+          hasOurRow: !!hasOurRow
+        });
+      });
+
       // Check all parent elements for display:none
       let parent = checkRow.parentElement;
       let depth = 0;
