@@ -729,7 +729,7 @@ async function injectRowIntoTable(table, bookingId) {
     bookingsCount: data.bookings?.length || 0
   });
 
-  // Build buttons - one per night with color coding
+  // Build buttons - may have multiple buttons per night for multiple matches
   let buttonsHtml = '';
 
   if (data.success && data.bookings && data.bookings.length > 0) {
@@ -737,69 +737,97 @@ async function injectRowIntoTable(table, bookingId) {
     console.log('[Hotel Extension] Row - Processing', booking.nights?.length || 0, 'nights');
 
     for (const night of booking.nights || []) {
-      const nightDate = night.date;
+      const dateShort = formatDateShort(night.date);
       const matchCount = night.match_count || 0;
       const hasPackage = night.has_package || false;
-      const hasMatches = matchCount > 0 && night.resos_bookings && night.resos_bookings.length > 0;
+      const nightButtons = [];
 
-      let buttonColor, buttonText, buttonTitle, buttonUrl, buttonIcon;
-
-      // Determine button properties based on match status
-      if (hasPackage && !hasMatches) {
-        // Red: Package night without booking (CRITICAL)
-        buttonColor = '#ef4444';
-        buttonIcon = 'add';
-        buttonText = formatDateShort(nightDate);
-        buttonTitle = 'Package - No Booking';
-        buttonUrl = `${adminBaseUrl}/booking/${bookingId}?date=${nightDate}`;
-      } else if (hasMatches) {
-        const match = night.resos_bookings[0];
-        const isPrimary = match.is_primary;
-
-        if (isPrimary) {
-          // Blue: Primary match
-          buttonColor = '#60a5fa';
-          buttonIcon = 'visibility';
-          buttonText = formatDateShort(nightDate);
-          buttonTitle = 'Primary Match';
-          // Link to ResOS for primary matches
-          if (match.restaurant_id && match.resos_booking_id) {
-            buttonUrl = `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${nightDate}/${match.resos_booking_id}`;
+      // Build button properties for this night (may be multiple buttons for multiple matches)
+      if (hasPackage && matchCount === 0) {
+        // Package without booking - RED (most critical)
+        nightButtons.push({
+          color: '#ef4444',
+          icon: 'add',
+          text: dateShort,
+          tooltip: 'URGENT: Package booking - Create restaurant reservation',
+          url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&auto-action=create`
+        });
+      } else if (matchCount > 1) {
+        // Multiple matches - show all of them
+        night.resos_bookings.forEach((match, index) => {
+          if (match.is_primary) {
+            // Primary match - BLUE with ResOS link
+            nightButtons.push({
+              color: '#60a5fa',
+              icon: 'visibility',
+              text: `${dateShort}`,
+              tooltip: 'Primary match - View in ResOS',
+              url: match.restaurant_id && match.resos_booking_id
+                ? `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`
+                : `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+            });
           } else {
-            buttonUrl = `${adminBaseUrl}/booking/${bookingId}?date=${nightDate}`;
+            // Suggested match - AMBER
+            nightButtons.push({
+              color: '#f59e0b',
+              icon: 'search',
+              text: `${dateShort}`,
+              tooltip: 'Suggested match - Review booking',
+              url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+            });
           }
+        });
+      } else if (matchCount === 1 && night.resos_bookings && night.resos_bookings[0]) {
+        const match = night.resos_bookings[0];
+        if (match.is_primary) {
+          // Single primary match - BLUE with ResOS link
+          nightButtons.push({
+            color: '#60a5fa',
+            icon: 'visibility',
+            text: dateShort,
+            tooltip: 'Primary match - View in ResOS',
+            url: match.restaurant_id && match.resos_booking_id
+              ? `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`
+              : `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+          });
         } else {
-          // Amber: Suggested match
-          buttonColor = '#f59e0b';
-          buttonIcon = 'search';
-          buttonText = formatDateShort(nightDate);
-          buttonTitle = 'Suggested Match';
-          buttonUrl = `${adminBaseUrl}/booking/${bookingId}?date=${nightDate}`;
+          // Single suggested match - AMBER
+          nightButtons.push({
+            color: '#f59e0b',
+            icon: 'search',
+            text: dateShort,
+            tooltip: 'Suggested match - Review booking',
+            url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+          });
         }
       } else {
-        // Dark green: No match (create new)
-        buttonColor = '#10b981';
-        buttonIcon = 'add';
-        buttonText = formatDateShort(nightDate);
-        buttonTitle = 'Create Booking';
-        buttonUrl = `${adminBaseUrl}/booking/${bookingId}?date=${nightDate}`;
+        // No matches - GREEN (create new)
+        nightButtons.push({
+          color: '#10b981',
+          icon: 'add',
+          text: dateShort,
+          tooltip: 'No match - Create new reservation',
+          url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&auto-action=create`
+        });
       }
 
-      console.log('[Hotel Extension] Row - Night', nightDate, '- Color:', buttonColor, '- Title:', buttonTitle);
+      // Generate HTML for all buttons for this night
+      nightButtons.forEach(btn => {
+        console.log('[Hotel Extension] Row - Night', night.date, '- Color:', btn.color, '- Title:', btn.tooltip);
 
-      // Create button HTML with Material Icons
-      buttonsHtml += `
-        <a href="${buttonUrl}"
-           class="hotel-extension-night-button"
-           target="_blank"
-           title="${buttonTitle}"
-           style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; margin: 2px; background-color: ${buttonColor}; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: opacity 0.2s; white-space: nowrap;"
-           onmouseover="this.style.opacity='0.8'"
-           onmouseout="this.style.opacity='1'">
-          <span class="material-symbols-outlined" style="font-size: 16px;">${buttonIcon}</span>
-          <span>${buttonText}</span>
-        </a>
-      `;
+        buttonsHtml += `
+          <a href="${btn.url}"
+             class="hotel-extension-night-button"
+             target="_blank"
+             title="${btn.tooltip}"
+             style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; margin: 2px; background-color: ${btn.color}; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: opacity 0.2s; white-space: nowrap;"
+             onmouseover="this.style.opacity='0.8'"
+             onmouseout="this.style.opacity='1'">
+            <span class="material-symbols-outlined" style="font-size: 16px;">${btn.icon}</span>
+            <span>${btn.text}</span>
+          </a>
+        `;
+      });
     }
   }
 
@@ -808,18 +836,19 @@ async function injectRowIntoTable(table, bookingId) {
     return;
   }
 
-  // Create the new row
+  // Create the new row with 5-column format matching NewBook table structure
   const newRow = document.createElement('tr');
   const rowCount = tbody.querySelectorAll('tr').length;
   newRow.className = rowCount % 2 === 0 ? 'odd' : 'even';
   newRow.setAttribute('data-hotel-extension', 'restaurant');
   newRow.setAttribute('data-booking-id', bookingId);
 
+  // Use 5-column format: labeler (15%) | view_value (34.5%) | spacer | labeler (15%) | view_value (34.5%)
   newRow.innerHTML = `
-    <td class="labeler" style="width: 35%;">
+    <td class="labeler" style="width: 15%;">
       <label class="fieldset_label">Restaurant</label>
     </td>
-    <td class="view_value" style="width: 65%;">
+    <td class="view_value" style="width: 34.5%;" colspan="4">
       ${buttonsHtml}
     </td>
   `;
@@ -1770,6 +1799,15 @@ setInterval(() => {
     updateCurrentBookingId();
   }
 }, 500); // Check every 500ms
+
+// Preload Material Symbols font early to prevent icons showing as text
+if (!document.querySelector('link[href*="Material+Symbols+Outlined"]')) {
+  const fontLink = document.createElement('link');
+  fontLink.rel = 'stylesheet';
+  fontLink.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap';
+  document.head.appendChild(fontLink);
+  console.log('[Hotel Extension] Material Symbols font preloaded');
+}
 
 // Log for debugging
 console.log('Hotel Number Four - Booking Assistant extension loaded');
