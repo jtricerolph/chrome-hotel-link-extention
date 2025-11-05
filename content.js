@@ -298,39 +298,70 @@ async function handleEasyToolTipBooking(tooltipElement) {
 
   console.log('[Hotel Extension] Detected easyToolTip booking popup for booking ID:', bookingId);
 
-  // Check if we've already processed this tooltip
+  // Check if we've already processed or are currently processing this tooltip
   if (tooltipElement.dataset.hotelExtensionProcessed) {
     console.log('[Hotel Extension] Tooltip already processed, skipping');
     return;
   }
-  tooltipElement.dataset.hotelExtensionProcessed = 'true';
 
-  // Store the current booking ID for the extension popup
-  if (chrome.runtime?.id) {
-    try {
-      chrome.storage.local.set({ currentBookingId: bookingId });
-      console.log('[Hotel Extension] Stored currentBookingId from tooltip:', bookingId);
-    } catch (error) {
-      console.log('[Hotel Extension] Failed to store booking ID from tooltip:', error.message);
-    }
+  if (tooltipElement.dataset.hotelExtensionPending) {
+    console.log('[Hotel Extension] Tooltip processing already pending, skipping');
+    return;
   }
 
-  // Trigger the extension popup for alerts/warnings
-  console.log('[Hotel Extension] Sending message to background to check booking and trigger popup if needed...');
-  if (chrome.runtime?.id) {
-    try {
-      chrome.runtime.sendMessage({
-        action: 'checkBookingFromDialog',
-        bookingId: bookingId
-      });
-      console.log('[Hotel Extension] Message sent to background script');
-    } catch (error) {
-      console.error('[Hotel Extension] Failed to send message to background:', error);
-    }
-  }
+  // Mark as "pending" to prevent duplicate processing
+  tooltipElement.dataset.hotelExtensionPending = 'true';
 
-  // Also inject a Restaurant row into the table for quick access
-  await injectRestaurantRowIntoTooltip(tooltipElement, bookingId);
+  // Add a 500ms delay before processing - only process if tooltip is still visible
+  // This prevents API bombardment when quickly moving mouse across the planner
+  setTimeout(async () => {
+    // Check if tooltip still exists and is visible
+    if (!document.body.contains(tooltipElement)) {
+      console.log('[Hotel Extension] Tooltip was removed before delay completed, skipping');
+      return;
+    }
+
+    const isVisible = tooltipElement.style.display !== 'none' &&
+                     tooltipElement.offsetParent !== null;
+
+    if (!isVisible) {
+      console.log('[Hotel Extension] Tooltip is no longer visible, skipping');
+      return;
+    }
+
+    // Now mark as fully processed
+    tooltipElement.dataset.hotelExtensionProcessed = 'true';
+    delete tooltipElement.dataset.hotelExtensionPending;
+
+    console.log('[Hotel Extension] Tooltip remained visible, processing booking:', bookingId);
+
+    // Store the current booking ID for the extension popup
+    if (chrome.runtime?.id) {
+      try {
+        chrome.storage.local.set({ currentBookingId: bookingId });
+        console.log('[Hotel Extension] Stored currentBookingId from tooltip:', bookingId);
+      } catch (error) {
+        console.log('[Hotel Extension] Failed to store booking ID from tooltip:', error.message);
+      }
+    }
+
+    // Trigger the extension popup for alerts/warnings
+    console.log('[Hotel Extension] Sending message to background to check booking and trigger popup if needed...');
+    if (chrome.runtime?.id) {
+      try {
+        chrome.runtime.sendMessage({
+          action: 'checkBookingFromDialog',
+          bookingId: bookingId
+        });
+        console.log('[Hotel Extension] Message sent to background script');
+      } catch (error) {
+        console.error('[Hotel Extension] Failed to send message to background:', error);
+      }
+    }
+
+    // Also inject a Restaurant row into the table for quick access
+    await injectRestaurantRowIntoTooltip(tooltipElement, bookingId);
+  }, 500); // 500ms delay
 }
 
 async function injectRestaurantInfoAsTab(tabContent, bookingId) {
