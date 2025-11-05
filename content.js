@@ -864,13 +864,8 @@ async function injectRestaurantRowIntoFullBookingView(bookingId) {
     return;
   }
 
-  // Check if we've already processed this booking's table
-  const alreadyProcessed = document.body.dataset.hotelExtensionTableProcessed === bookingId;
-
-  if (alreadyProcessed) {
-    console.log('[Hotel Extension] Table already processed for this booking, skipping');
-    return;
-  }
+  // Don't use body dataset for processed flag - check the table directly instead
+  // (NewBook is a single-page app, body persists across navigation)
 
   // Try to find the booking details table
   console.log('[Hotel Extension] Looking for booking details table...');
@@ -917,9 +912,6 @@ async function injectRestaurantRowIntoFullBookingView(bookingId) {
 // Helper function to inject row into full booking view table (5-column format)
 async function injectRowIntoFullBookingTable(table, bookingId) {
   console.log('[Hotel Extension] Injecting row into full booking table for ID:', bookingId);
-
-  // Mark as processed for this booking ID
-  document.body.dataset.hotelExtensionTableProcessed = bookingId;
 
   // Ensure Material Symbols font is loaded
   if (!document.querySelector('link[href*="Material+Symbols+Outlined"]')) {
@@ -1054,7 +1046,7 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
       <a href="${btn.url}"
          target="_blank"
          title="${btn.tooltip}"
-         style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; margin: 2px; background-color: ${btn.color}; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: opacity 0.2s;"
+         style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; margin: 2px; background-color: ${btn.color}; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: opacity 0.2s;"
          onmouseover="this.style.opacity='0.8'"
          onmouseout="this.style.opacity='1'">
         <span class="material-symbols-outlined" style="font-size: 16px;">${btn.icon}</span>
