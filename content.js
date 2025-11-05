@@ -786,12 +786,22 @@ async function injectRestaurantRowIntoFullBookingView(bookingId) {
 
   // Check if document.body exists
   if (!document.body) {
-    console.log('[Hotel Extension] document.body not available yet, waiting for DOMContentLoaded...');
+    console.log('[Hotel Extension] document.body not available yet, readyState:', document.readyState);
     // Wait for DOMContentLoaded and try again
     if (document.readyState === 'loading') {
+      console.log('[Hotel Extension] Adding DOMContentLoaded listener');
       document.addEventListener('DOMContentLoaded', () => {
+        console.log('[Hotel Extension] DOMContentLoaded fired, retrying injection');
         injectRestaurantRowIntoFullBookingView(bookingId);
       });
+    } else {
+      // ReadyState is not 'loading' but body still doesn't exist
+      // Wait a short time and try again
+      console.log('[Hotel Extension] Using setTimeout to wait for body');
+      setTimeout(() => {
+        console.log('[Hotel Extension] setTimeout fired, retrying injection');
+        injectRestaurantRowIntoFullBookingView(bookingId);
+      }, 100);
     }
     return;
   }
