@@ -2,7 +2,7 @@
 // This script runs on all NewBook pages and enables future features like right-click menus
 
 console.log('===============================================');
-console.log('🏨 Hotel Number Four Extension LOADED');
+console.log('Hotel Number Four Extension LOADED');
 console.log('===============================================');
 console.log('[Hotel Extension] Version: 1.2.0');
 console.log('[Hotel Extension] URL:', window.location.href);
@@ -258,7 +258,7 @@ async function handleBookingDialog(dialogElement) {
   }
 
   const bookingId = bookingMatch[1];
-  console.log('[Hotel Extension] ✓ Detected booking popup for booking ID:', bookingId);
+  console.log('[Hotel Extension] Detected booking popup for booking ID:', bookingId);
 
   // Mark as processed
   dialogElement.dataset.hotelExtensionProcessed = 'true';
@@ -1237,7 +1237,7 @@ function updateCurrentBookingId() {
 
   if (urlMatch) {
     const bookingId = urlMatch[1];
-    console.log('[Hotel Extension] ✓ On booking page, ID:', bookingId);
+    console.log('[Hotel Extension] On booking page, ID:', bookingId);
 
     // Store the current booking ID for the extension popup
     try {
