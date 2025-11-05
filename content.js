@@ -544,6 +544,20 @@ async function fetchRestaurantBookingData(bookingId) {
     const settings = result.settings || {};
     const apiEndpoint = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
 
+    // Prepare authentication header
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+
+    if (settings.wpUsername && settings.wpAppPassword) {
+      // Create Basic Auth header
+      const credentials = btoa(`${settings.wpUsername}:${settings.wpAppPassword}`);
+      headers['Authorization'] = `Basic ${credentials}`;
+      console.log('[Hotel Extension] Using Basic Authentication with username:', settings.wpUsername);
+    } else {
+      console.warn('[Hotel Extension] No authentication credentials configured');
+    }
+
     console.log('[Hotel Extension] === API REQUEST DEBUG (HTML) ===');
     console.log('[Hotel Extension] API Endpoint:', apiEndpoint);
     console.log('[Hotel Extension] Booking ID:', bookingId);
@@ -554,9 +568,7 @@ async function fetchRestaurantBookingData(bookingId) {
 
     const response = await fetch(apiEndpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: headers,
       body: JSON.stringify({
         booking_id: parseInt(bookingId),
         context: 'chrome-extension'
@@ -604,13 +616,25 @@ async function fetchRestaurantBookingDataJSON(bookingId) {
     const settings = result.settings || {};
     const apiEndpoint = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
 
+    // Prepare authentication header
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+
+    if (settings.wpUsername && settings.wpAppPassword) {
+      // Create Basic Auth header
+      const credentials = btoa(`${settings.wpUsername}:${settings.wpAppPassword}`);
+      headers['Authorization'] = `Basic ${credentials}`;
+      console.log('[Hotel Extension] Using Basic Authentication with username:', settings.wpUsername);
+    } else {
+      console.warn('[Hotel Extension] No authentication credentials configured');
+    }
+
     console.log('[Hotel Extension] Calling API with:', { booking_id: parseInt(bookingId), context: 'json' });
 
     const response = await fetch(apiEndpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: headers,
       body: JSON.stringify({
         booking_id: parseInt(bookingId),
         context: 'json'  // Request JSON format with bookings array

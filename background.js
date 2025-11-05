@@ -32,11 +32,23 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
     const settings = await chrome.storage.local.get(['settings']);
     const apiEndpoint = settings.settings?.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
 
+    // Prepare authentication header
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+
+    if (settings.settings?.wpUsername && settings.settings?.wpAppPassword) {
+      // Create Basic Auth header
+      const credentials = btoa(`${settings.settings.wpUsername}:${settings.settings.wpAppPassword}`);
+      headers['Authorization'] = `Basic ${credentials}`;
+      console.log('[Background] Using Basic Authentication with username:', settings.settings.wpUsername);
+    } else {
+      console.warn('[Background] No authentication credentials configured');
+    }
+
     const response = await fetch(apiEndpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: headers,
       body: JSON.stringify({
         booking_id: parseInt(bookingId),
         context: 'json'
@@ -49,9 +61,7 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
       // Also fetch HTML version for the popup (includes inline ResOS links)
       const htmlResponse = await fetch(apiEndpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: headers,
         body: JSON.stringify({
           booking_id: parseInt(bookingId),
           context: 'chrome-extension'

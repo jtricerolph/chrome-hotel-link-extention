@@ -109,11 +109,27 @@ async function loadBookingData() {
 
 // Fetch booking data from API (for fresh data when cache is stale)
 async function fetchBookingData(apiEndpoint, bookingId, context = 'chrome-extension') {
+  // Get settings for authentication
+  const result = await chrome.storage.local.get(['settings']);
+  const settings = result.settings || {};
+
+  // Prepare authentication header
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
+  if (settings.wpUsername && settings.wpAppPassword) {
+    // Create Basic Auth header
+    const credentials = btoa(`${settings.wpUsername}:${settings.wpAppPassword}`);
+    headers['Authorization'] = `Basic ${credentials}`;
+    console.log('[Popup] Using Basic Authentication with username:', settings.wpUsername);
+  } else {
+    console.warn('[Popup] No authentication credentials configured');
+  }
+
   const response = await fetch(apiEndpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: headers,
     body: JSON.stringify({
       booking_id: parseInt(bookingId),
       context: context  // 'chrome-extension' for HTML, 'json' for match data

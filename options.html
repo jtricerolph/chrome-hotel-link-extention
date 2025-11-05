@@ -178,6 +178,26 @@
       </div>
     </div>
 
+    <div class="setting-group">
+      <label>
+        WordPress Username
+        <span class="hint">Your WordPress username for API authentication</span>
+      </label>
+      <input type="text" id="wpUsername" placeholder="your-username" autocomplete="username">
+    </div>
+
+    <div class="setting-group">
+      <label>
+        Application Password
+        <span class="hint">Generate this in WordPress admin under Users > Profile > Application Passwords</span>
+      </label>
+      <input type="password" id="wpAppPassword" placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" autocomplete="current-password">
+      <div class="hint" style="margin-top: 8px; padding: 8px; background: #e3f2fd; border-radius: 4px;">
+        <strong>How to generate:</strong> In WordPress admin, go to Users → Your Profile → scroll to "Application Passwords" →
+        enter name "Chrome Extension" → click "Add New" → copy the generated password
+      </div>
+    </div>
+
     <div class="button-group">
       <button class="save-button" id="saveButton">Save Settings</button>
       <button class="reset-button" id="resetButton">Reset to Defaults</button>

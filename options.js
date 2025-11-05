@@ -3,7 +3,9 @@
 // Default settings
 const DEFAULT_SETTINGS = {
   apiEndpoint: 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match',
-  adminBaseUrl: 'https://n4admindev.pterois.co.uk'
+  adminBaseUrl: 'https://n4admindev.pterois.co.uk',
+  wpUsername: '',
+  wpAppPassword: ''
 };
 
 // Load saved settings when page loads
@@ -20,8 +22,10 @@ async function loadSettings() {
 
     document.getElementById('apiEndpoint').value = settings.apiEndpoint || DEFAULT_SETTINGS.apiEndpoint;
     document.getElementById('adminBaseUrl').value = settings.adminBaseUrl || DEFAULT_SETTINGS.adminBaseUrl;
+    document.getElementById('wpUsername').value = settings.wpUsername || DEFAULT_SETTINGS.wpUsername;
+    document.getElementById('wpAppPassword').value = settings.wpAppPassword || DEFAULT_SETTINGS.wpAppPassword;
 
-    console.log('Settings loaded:', settings);
+    console.log('Settings loaded (credentials hidden)');
   } catch (error) {
     console.error('Error loading settings:', error);
     showStatus('Failed to load settings', 'error');
@@ -33,6 +37,8 @@ async function saveSettings() {
   try {
     const apiEndpoint = document.getElementById('apiEndpoint').value.trim();
     const adminBaseUrl = document.getElementById('adminBaseUrl').value.trim();
+    const wpUsername = document.getElementById('wpUsername').value.trim();
+    const wpAppPassword = document.getElementById('wpAppPassword').value.trim();
 
     // Validate URLs
     if (!apiEndpoint) {
@@ -50,14 +56,22 @@ async function saveSettings() {
       return;
     }
 
+    // Validate authentication credentials
+    if (!wpUsername || !wpAppPassword) {
+      showStatus('WordPress username and application password are required for authentication', 'error');
+      return;
+    }
+
     const settings = {
       apiEndpoint: apiEndpoint,
-      adminBaseUrl: adminBaseUrl
+      adminBaseUrl: adminBaseUrl,
+      wpUsername: wpUsername,
+      wpAppPassword: wpAppPassword
     };
 
     await chrome.storage.local.set({ settings: settings });
 
-    console.log('Settings saved:', settings);
+    console.log('Settings saved (credentials secured)');
     showStatus('Settings saved successfully!', 'success');
 
     // Clear any cached data so new settings take effect immediately
