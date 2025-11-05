@@ -581,6 +581,8 @@ async function injectRowIntoTable(table, bookingId) {
   // Fetch restaurant booking data from API
   const data = await fetchRestaurantBookingData(bookingId);
 
+  console.log('[Hotel Extension] Tooltip row injection - API data received:', !!data);
+
   if (!data) {
     console.log('[Hotel Extension] No data returned from API for row injection');
     return;
@@ -597,6 +599,12 @@ async function injectRowIntoTable(table, bookingId) {
   let buttonClass = '';
   let primaryMatch = null;
 
+  console.log('[Hotel Extension] Tooltip - Checking data structure:', {
+    success: data.success,
+    hasBookings: !!(data.bookings && data.bookings.length > 0),
+    bookingsCount: data.bookings?.length || 0
+  });
+
   // Check if there are matches
   if (data.success && data.bookings && data.bookings.length > 0) {
     const booking = data.bookings[0];
@@ -604,11 +612,22 @@ async function injectRowIntoTable(table, bookingId) {
     let hasSuggestedMatch = false;
     let hasNoMatch = false;
 
-    for (const night of booking.nights) {
+    console.log('[Hotel Extension] Tooltip - Processing', booking.nights?.length || 0, 'nights');
+
+    for (const night of booking.nights || []) {
       const matchCount = night.match_count || 0;
 
-      if (matchCount > 0 && night.resos_bookings) {
+      console.log('[Hotel Extension] Tooltip - Night', night.date, '- match_count:', matchCount, '- has_resos_bookings:', !!(night.resos_bookings && night.resos_bookings.length > 0));
+
+      if (matchCount > 0 && night.resos_bookings && night.resos_bookings.length > 0) {
         const match = night.resos_bookings[0];
+        console.log('[Hotel Extension] Tooltip - Match details:', {
+          is_primary: match.is_primary,
+          resos_booking_id: match.resos_booking_id,
+          restaurant_id: match.restaurant_id,
+          date: night.date
+        });
+
         if (match.is_primary) {
           hasMatch = true;
           // Store the first primary match for ResOS link
@@ -618,6 +637,7 @@ async function injectRowIntoTable(table, bookingId) {
               restaurant_id: match.restaurant_id,
               booking_date: night.date
             };
+            console.log('[Hotel Extension] Tooltip - Primary match stored for ResOS button');
           }
         } else {
           hasSuggestedMatch = true;
@@ -626,6 +646,8 @@ async function injectRowIntoTable(table, bookingId) {
         hasNoMatch = true;
       }
     }
+
+    console.log('[Hotel Extension] Tooltip - Match summary:', { hasMatch, hasSuggestedMatch, hasNoMatch });
 
     // Priority: no match > suggested > matched
     if (hasNoMatch) {
@@ -639,6 +661,9 @@ async function injectRowIntoTable(table, bookingId) {
       buttonClass = 'view';
     }
   }
+
+  console.log('[Hotel Extension] Tooltip - Final button text:', buttonText);
+  console.log('[Hotel Extension] Tooltip - Will show ResOS button:', !!primaryMatch);
 
   // Build the buttons HTML
   let buttonsHtml = `
@@ -753,8 +778,10 @@ async function injectButtonIntoPane(buttonPane, bookingId) {
   // Fetch restaurant booking data from API
   const data = await fetchRestaurantBookingData(bookingId);
 
+  console.log('[Hotel Extension] Dialog button injection - API data received:', !!data);
+
   if (!data) {
-    console.log('[Hotel Extension] No data returned from API');
+    console.log('[Hotel Extension] No data returned from API for dialog button');
     return;
   }
 
@@ -764,10 +791,16 @@ async function injectButtonIntoPane(buttonPane, bookingId) {
   const adminBaseUrl = settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
 
   // Determine button text based on booking status
-  let buttonText = 'Restaurant';
+  let buttonText = 'View Restaurant';  // Default text if no data available
   let buttonIcon = 'fa-utensils';
   let buttonUrl = `${adminBaseUrl}/booking/${bookingId}`;
   let primaryMatch = null;
+
+  console.log('[Hotel Extension] Dialog - Checking data structure:', {
+    success: data.success,
+    hasBookings: !!(data.bookings && data.bookings.length > 0),
+    bookingsCount: data.bookings?.length || 0
+  });
 
   // Check if there are matches
   if (data.success && data.bookings && data.bookings.length > 0) {
@@ -776,11 +809,17 @@ async function injectButtonIntoPane(buttonPane, bookingId) {
     let hasSuggestedMatch = false;
     let hasNoMatch = false;
 
-    for (const night of booking.nights) {
+    console.log('[Hotel Extension] Dialog - Processing', booking.nights?.length || 0, 'nights');
+
+    for (const night of booking.nights || []) {
       const matchCount = night.match_count || 0;
 
-      if (matchCount > 0 && night.resos_bookings) {
+      console.log('[Hotel Extension] Dialog - Night', night.date, '- match_count:', matchCount);
+
+      if (matchCount > 0 && night.resos_bookings && night.resos_bookings.length > 0) {
         const match = night.resos_bookings[0];
+        console.log('[Hotel Extension] Dialog - Match found, is_primary:', match.is_primary);
+
         if (match.is_primary) {
           hasMatch = true;
           // Store the first primary match for ResOS link
@@ -790,6 +829,7 @@ async function injectButtonIntoPane(buttonPane, bookingId) {
               restaurant_id: match.restaurant_id,
               booking_date: night.date
             };
+            console.log('[Hotel Extension] Dialog - Primary match stored:', primaryMatch);
           }
         } else {
           hasSuggestedMatch = true;
@@ -798,6 +838,8 @@ async function injectButtonIntoPane(buttonPane, bookingId) {
         hasNoMatch = true;
       }
     }
+
+    console.log('[Hotel Extension] Dialog - Match summary:', { hasMatch, hasSuggestedMatch, hasNoMatch });
 
     // Set button text based on priority
     if (hasNoMatch) {
@@ -808,6 +850,9 @@ async function injectButtonIntoPane(buttonPane, bookingId) {
       buttonText = 'View Booking';
     }
   }
+
+  console.log('[Hotel Extension] Dialog - Final button text:', buttonText);
+  console.log('[Hotel Extension] Dialog - Primary match for ResOS:', !!primaryMatch);
 
   // Create the admin button (matching NewBook's button style)
   const button = document.createElement('button');
@@ -938,16 +983,21 @@ if (document.readyState === 'loading') {
 // ============================================================================
 
 async function injectRestaurantButtonsIntoContextMenus(bookingId) {
-  console.log('[Hotel Extension] Injecting Restaurant buttons into context menus for booking:', bookingId);
+  console.log('[Hotel Extension] ===== CONTEXT MENU INJECTION START =====');
+  console.log('[Hotel Extension] Booking ID:', bookingId);
+  console.log('[Hotel Extension] Current processed ID:', document.body.dataset.hotelExtensionContextMenusProcessed);
 
-  // Check if we've already processed this page
-  if (document.body.dataset.hotelExtensionContextMenusProcessed === bookingId) {
+  // Check if we've already processed context menus for this exact booking
+  const alreadyProcessed = document.body.dataset.hotelExtensionContextMenusProcessed === bookingId;
+
+  if (alreadyProcessed) {
     console.log('[Hotel Extension] Context menus already processed for this booking, skipping');
     return;
   }
 
   // Mark as processed for this booking ID
   document.body.dataset.hotelExtensionContextMenusProcessed = bookingId;
+  console.log('[Hotel Extension] Marked as processed for booking:', bookingId);
 
   // Try to find the context menus
   console.log('[Hotel Extension] Looking for context menus...');
@@ -1054,7 +1104,8 @@ async function injectRestaurantButtonsIntoContextMenus(bookingId) {
 }
 
 async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
-  console.log('[Hotel Extension] Injecting button into', position, 'context menu');
+  console.log('[Hotel Extension] ===== CONTEXT MENU BUTTON INJECTION =====');
+  console.log('[Hotel Extension] Position:', position, '- Booking ID:', bookingId);
 
   // Check if we've already injected a button here
   if (contextMenu.querySelector('.hotel-extension-restaurant-menu-item')) {
@@ -1064,6 +1115,8 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
 
   // Fetch restaurant booking data from API
   const data = await fetchRestaurantBookingData(bookingId);
+
+  console.log('[Hotel Extension] Context menu - API data received:', !!data);
 
   if (!data) {
     console.log('[Hotel Extension] No data returned from API for context menu');
@@ -1076,10 +1129,16 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
   const adminBaseUrl = settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
 
   // Determine button text based on booking status
-  let buttonText = 'Restaurant';
+  let buttonText = 'View Restaurant';  // Default text if no specific status
   let buttonIcon = 'fa-utensils';
   let buttonUrl = `${adminBaseUrl}/booking/${bookingId}`;
   let primaryMatch = null;
+
+  console.log('[Hotel Extension] Context menu - Checking data structure:', {
+    success: data.success,
+    hasBookings: !!(data.bookings && data.bookings.length > 0),
+    bookingsCount: data.bookings?.length || 0
+  });
 
   // Check if there are matches
   if (data.success && data.bookings && data.bookings.length > 0) {
@@ -1088,11 +1147,17 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
     let hasSuggestedMatch = false;
     let hasNoMatch = false;
 
-    for (const night of booking.nights) {
+    console.log('[Hotel Extension] Context menu - Processing', booking.nights?.length || 0, 'nights');
+
+    for (const night of booking.nights || []) {
       const matchCount = night.match_count || 0;
 
-      if (matchCount > 0 && night.resos_bookings) {
+      console.log('[Hotel Extension] Context menu - Night', night.date, '- match_count:', matchCount);
+
+      if (matchCount > 0 && night.resos_bookings && night.resos_bookings.length > 0) {
         const match = night.resos_bookings[0];
+        console.log('[Hotel Extension] Context menu - Match found, is_primary:', match.is_primary);
+
         if (match.is_primary) {
           hasMatch = true;
           // Store the first primary match for ResOS link
@@ -1102,6 +1167,7 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
               restaurant_id: match.restaurant_id,
               booking_date: night.date
             };
+            console.log('[Hotel Extension] Context menu - Primary match stored:', primaryMatch);
           }
         } else {
           hasSuggestedMatch = true;
@@ -1110,6 +1176,8 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
         hasNoMatch = true;
       }
     }
+
+    console.log('[Hotel Extension] Context menu - Match summary:', { hasMatch, hasSuggestedMatch, hasNoMatch });
 
     // Set button text based on priority
     if (hasNoMatch) {
@@ -1123,6 +1191,9 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
       buttonIcon = 'fa-eye';
     }
   }
+
+  console.log('[Hotel Extension] Context menu - Final button text:', buttonText);
+  console.log('[Hotel Extension] Context menu - Will show ResOS button:', !!primaryMatch);
 
   // Find the "Options" menu item to insert before it
   const menuItems = contextMenu.querySelectorAll('li');

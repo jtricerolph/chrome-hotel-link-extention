@@ -3,7 +3,7 @@
 // DOM Elements
 let loadingState, notOnBookingPage, errorState, errorMessage;
 let apiResponse, noMatchesState, bookingIdDisplay, adminLink, retryBtn;
-let resosLinkContainer, resosLink, apiResponseContent;
+let apiResponseContent;
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -17,8 +17,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   bookingIdDisplay = document.getElementById('bookingIdDisplay');
   adminLink = document.getElementById('adminLink');
   retryBtn = document.getElementById('retryBtn');
-  resosLinkContainer = document.getElementById('resosLinkContainer');
-  resosLink = document.getElementById('resosLink');
   apiResponseContent = document.getElementById('apiResponseContent');
 
   // Setup retry button
@@ -64,12 +62,10 @@ async function loadBookingData() {
     const adminBaseUrl = settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
 
     let htmlData;
-    let jsonData;
 
-    // Check if we have cached data for this booking
+    // Check if we have cached HTML data for this booking
     const cacheMaxAge = 60000; // 60 seconds
     const isCacheValid = result.cachedBookingHtml &&
-                        result.cachedBookingData &&
                         result.cachedBookingId === bookingId &&
                         result.cachedTimestamp &&
                         (Date.now() - result.cachedTimestamp) < cacheMaxAge;
@@ -77,49 +73,23 @@ async function loadBookingData() {
     if (isCacheValid) {
       console.log('Using cached booking data');
       htmlData = result.cachedBookingHtml;
-      jsonData = result.cachedBookingData;
     } else {
       console.log('Fetching fresh booking data from:', apiEndpoint);
       console.log('For booking ID:', bookingId);
-      // Fetch fresh HTML and JSON from API
+      // Fetch fresh HTML from API (includes inline ResOS links)
       htmlData = await fetchBookingData(apiEndpoint, bookingId, 'chrome-extension');
-      jsonData = await fetchBookingData(apiEndpoint, bookingId, 'json');
       console.log('Received HTML data:', htmlData);
-      console.log('Received JSON data:', jsonData);
     }
 
-    // Check for primary matches in JSON data
-    let primaryMatch = null;
-    if (jsonData && jsonData.success && jsonData.bookings && jsonData.bookings.length > 0) {
-      const booking = jsonData.bookings[0];
-      for (const night of booking.nights) {
-        if (night.match_count > 0 && night.resos_bookings) {
-          const match = night.resos_bookings[0];
-          if (match.is_primary) {
-            primaryMatch = {
-              resos_booking_id: match.resos_booking_id,
-              restaurant_id: match.restaurant_id,
-              booking_date: night.date
-            };
-            break;
-          }
-        }
-      }
-    }
-
-    // Display the response
+    // Display the response (HTML includes inline ResOS links for primary matches)
     if (htmlData && htmlData.html) {
-      // Display HTML with ResOS link if available
-      displayApiHtml(htmlData.html, primaryMatch);
-    } else if (jsonData && jsonData.success && jsonData.bookings && jsonData.bookings.length > 0) {
-      // Fallback for JSON response
-      displayApiHtml('<div class="bma-result"><p>Booking found</p></div>', primaryMatch);
+      displayApiHtml(htmlData.html);
+    } else if (htmlData && htmlData.success) {
+      // Fallback for successful JSON response without HTML
+      displayApiHtml('<div class="bma-result"><p>Booking found</p></div>');
     } else if (htmlData && htmlData.error) {
       // API returned an error
       showError(htmlData.error);
-    } else if (jsonData && jsonData.error) {
-      // API returned an error
-      showError(jsonData.error);
     } else {
       // No matches or unexpected response
       showNoMatches(bookingId, adminBaseUrl);
@@ -157,19 +127,9 @@ async function fetchBookingData(apiEndpoint, bookingId, context = 'chrome-extens
   return await response.json();
 }
 
-// Display HTML from API
-function displayApiHtml(html, primaryMatch = null) {
+// Display HTML from API (HTML includes inline ResOS links)
+function displayApiHtml(html) {
   apiResponseContent.innerHTML = html;
-
-  // Show/hide ResOS link based on primary match
-  if (primaryMatch && primaryMatch.resos_booking_id && primaryMatch.restaurant_id && primaryMatch.booking_date) {
-    const resosUrl = `https://app.resos.com/${primaryMatch.restaurant_id}/bookings/timetable/${primaryMatch.booking_date}/${primaryMatch.resos_booking_id}`;
-    resosLink.href = resosUrl;
-    resosLinkContainer.style.display = 'block';
-  } else {
-    resosLinkContainer.style.display = 'none';
-  }
-
   showState('apiResponse');
 }
 

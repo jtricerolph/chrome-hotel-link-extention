@@ -46,7 +46,7 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
     if (response.ok) {
       const data = await response.json();
 
-      // Also fetch HTML version for the popup
+      // Also fetch HTML version for the popup (includes inline ResOS links)
       const htmlResponse = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
@@ -63,7 +63,7 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
         htmlData = await htmlResponse.json();
       }
 
-      // Cache both JSON (for logic) and HTML (for popup display)
+      // Cache JSON (for badge logic) and HTML (for popup display with inline ResOS links)
       chrome.storage.local.set({
         cachedBookingData: data,
         cachedBookingHtml: htmlData,
