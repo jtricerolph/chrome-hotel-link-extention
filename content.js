@@ -862,7 +862,7 @@ async function injectRestaurantRowIntoFullBookingView(bookingId) {
       if (foundTable) {
         console.log('[Hotel Extension] Table found via observer!');
         tableObserver.disconnect();
-        injectRowIntoFullBookingTable(foundTable, bookingId);
+        waitForTableToBeVisible(foundTable, bookingId);
       }
     });
 
@@ -876,7 +876,7 @@ async function injectRestaurantRowIntoFullBookingView(bookingId) {
       const foundTable = document.querySelector('.pretty_table.fieldset_table');
       if (foundTable) {
         tableObserver.disconnect();
-        injectRowIntoFullBookingTable(foundTable, bookingId);
+        waitForTableToBeVisible(foundTable, bookingId);
       } else {
         tableObserver.disconnect();
       }
@@ -885,7 +885,42 @@ async function injectRestaurantRowIntoFullBookingView(bookingId) {
     return;
   }
 
-  await injectRowIntoFullBookingTable(table, bookingId);
+  // Table found, but wait for it to be visible before injecting
+  await waitForTableToBeVisible(table, bookingId);
+}
+
+// Wait for table to have non-zero dimensions (be visible) before injecting row
+async function waitForTableToBeVisible(table, bookingId) {
+  console.log('[Hotel Extension] Waiting for table to be visible...');
+
+  // Check if table is already visible
+  const tableRect = table.getBoundingClientRect();
+  if (tableRect.width > 0 && tableRect.height > 0) {
+    console.log('[Hotel Extension] Table is already visible, injecting row immediately');
+    await injectRowIntoFullBookingTable(table, bookingId);
+    return;
+  }
+
+  // Table exists but not visible yet - wait for it to become visible
+  console.log('[Hotel Extension] Table has 0 dimensions, waiting for it to become visible...');
+
+  let attempts = 0;
+  const maxAttempts = 20; // 20 * 100ms = 2 seconds max wait
+
+  const checkInterval = setInterval(() => {
+    const rect = table.getBoundingClientRect();
+    attempts++;
+
+    if (rect.width > 0 && rect.height > 0) {
+      console.log('[Hotel Extension] Table became visible after', attempts * 100, 'ms');
+      clearInterval(checkInterval);
+      injectRowIntoFullBookingTable(table, bookingId);
+    } else if (attempts >= maxAttempts) {
+      console.log('[Hotel Extension] Timeout waiting for table to become visible, injecting anyway');
+      clearInterval(checkInterval);
+      injectRowIntoFullBookingTable(table, bookingId);
+    }
+  }, 100); // Check every 100ms
 }
 
 // Helper function to inject row into full booking view table (5-column format)
