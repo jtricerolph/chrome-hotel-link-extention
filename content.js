@@ -83,65 +83,9 @@ function getCurrentVisibleBookingId() {
   return null;
 }
 
-// Store last right-clicked element for context menu
-let lastRightClickedElement = null;
-
-// Override right-click blocking - run in capture phase with highest priority
-document.addEventListener('contextmenu', (event) => {
-  lastRightClickedElement = event.target;
-
-  // Try to find booking_id from the clicked element or its parents
-  let element = event.target;
-  let bookingId = null;
-
-  // Traverse up the DOM tree to find a booking_id
-  while (element && element !== document.body) {
-    bookingId = element.getAttribute('booking_id') || element.getAttribute('data-booking-id');
-
-    if (bookingId) {
-      // Store this booking ID for the context menu action
-      if (chrome.runtime?.id) {
-        try {
-          chrome.storage.local.set({ lastClickedBookingId: bookingId });
-        } catch (error) {
-          console.log('[Hotel Extension] Failed to store clicked booking ID:', error.message);
-        }
-      }
-      break;
-    }
-
-    element = element.parentElement;
-  }
-
-  // IMPORTANT: Allow the context menu to show by stopping any page scripts from blocking it
-  event.stopPropagation();
-  event.stopImmediatePropagation();
-}, true);
-
-// Additional protection: Remove any existing contextmenu event listeners that block right-click
-// This runs early to prevent the page from blocking our menu
-(function() {
-  const originalAddEventListener = EventTarget.prototype.addEventListener;
-  EventTarget.prototype.addEventListener = function(type, listener, options) {
-    // Don't let the page block contextmenu events
-    if (type === 'contextmenu') {
-      // Still add it, but our listener (above) runs first in capture phase
-      return originalAddEventListener.call(this, type, listener, options);
-    }
-    return originalAddEventListener.call(this, type, listener, options);
-  };
-})();
-
-// Force re-enable right-click if the page tries to disable it with oncontextmenu
-document.addEventListener('DOMContentLoaded', () => {
-  document.oncontextmenu = null;
-  document.body.oncontextmenu = null;
-
-  // Remove any inline oncontextmenu attributes
-  document.querySelectorAll('[oncontextmenu]').forEach(el => {
-    el.removeAttribute('oncontextmenu');
-  });
-});
+// Note: Right-click context menu injection code was removed as it was unused dead code.
+// The Chrome extension uses its own context menu system via chrome.contextMenus API
+// which is configured in background.js.
 
 // Optional: Add visual indicator when hovering over booking elements
 // This can help staff know which bookings are clickable
@@ -378,19 +322,13 @@ async function handleEasyToolTipBooking(tooltipElement) {
   // Get behavior settings
   const settingsResult = await chrome.storage.local.get(['settings']);
   const settings = settingsResult.settings || {};
-  const enablePlannerHover = settings.enablePlannerHover !== undefined ? settings.enablePlannerHover : true;
+  const enablePlannerHoverPopup = settings.enablePlannerHover !== undefined ? settings.enablePlannerHover : true;
   const hoverDelay = settings.hoverDelay || 500;
   const autoPopupDelay = settings.autoPopupDelay || 2500;
 
-  // Check if planner hover injection is enabled
-  if (!enablePlannerHover) {
-    console.log('[Hotel Extension] Planner hover injection disabled in settings, skipping');
-    delete tooltipElement.dataset.hotelExtensionPending;
-    return;
-  }
-
   // Add configured delay before processing API call - only process if tooltip is still visible
   // This prevents API bombardment when quickly moving mouse across the planner
+  // Button injection always happens; the setting only controls whether popup triggers
   setTimeout(async () => {
     // Check if tooltip still exists and is visible
     if (!document.body.contains(tooltipElement)) {
@@ -425,36 +363,40 @@ async function handleEasyToolTipBooking(tooltipElement) {
     // Inject a Restaurant row into the table for quick access
     await injectRestaurantRowIntoTooltip(tooltipElement, bookingId);
 
-    // Trigger the extension popup for alerts/warnings with configured delay
+    // Trigger the extension popup for alerts/warnings with configured delay (if enabled)
     // This prevents popup spam when quickly scanning bookings
-    setTimeout(() => {
-      // Check again if tooltip is still visible before triggering popup
-      if (!document.body.contains(tooltipElement)) {
-        console.log('[Hotel Extension] Tooltip removed before popup trigger, skipping popup');
-        return;
-      }
-
-      const stillVisible = tooltipElement.style.display !== 'none' &&
-                          tooltipElement.offsetParent !== null;
-
-      if (!stillVisible) {
-        console.log('[Hotel Extension] Tooltip no longer visible, skipping popup');
-        return;
-      }
-
-      console.log(`[Hotel Extension] Tooltip remained visible for ${autoPopupDelay}ms, triggering popup check...`);
-      if (chrome.runtime?.id) {
-        try {
-          chrome.runtime.sendMessage({
-            action: 'checkBookingFromDialog',
-            bookingId: bookingId
-          });
-          console.log('[Hotel Extension] Message sent to background script');
-        } catch (error) {
-          console.error('[Hotel Extension] Failed to send message to background:', error);
+    if (enablePlannerHoverPopup) {
+      setTimeout(() => {
+        // Check again if tooltip is still visible before triggering popup
+        if (!document.body.contains(tooltipElement)) {
+          console.log('[Hotel Extension] Tooltip removed before popup trigger, skipping popup');
+          return;
         }
-      }
-    }, autoPopupDelay - hoverDelay); // Additional delay (autoPopupDelay total from initial hover)
+
+        const stillVisible = tooltipElement.style.display !== 'none' &&
+                            tooltipElement.offsetParent !== null;
+
+        if (!stillVisible) {
+          console.log('[Hotel Extension] Tooltip no longer visible, skipping popup');
+          return;
+        }
+
+        console.log(`[Hotel Extension] Tooltip remained visible for ${autoPopupDelay}ms, triggering popup check...`);
+        if (chrome.runtime?.id) {
+          try {
+            chrome.runtime.sendMessage({
+              action: 'checkBookingFromDialog',
+              bookingId: bookingId
+            });
+            console.log('[Hotel Extension] Message sent to background script');
+          } catch (error) {
+            console.error('[Hotel Extension] Failed to send message to background:', error);
+          }
+        }
+      }, autoPopupDelay - hoverDelay); // Additional delay (autoPopupDelay total from initial hover)
+    } else {
+      console.log('[Hotel Extension] Planner hover auto-popup disabled in settings, skipping popup trigger');
+    }
   }, hoverDelay); // Configured hover delay for API call
 }
 
@@ -1541,304 +1483,6 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
     console.error('[Hotel Extension] Fatal error in injectRowIntoFullBookingTable:', error.message);
     console.error('[Hotel Extension] Stack trace:', error.stack);
     console.error('[Hotel Extension] Full error:', error);
-  }
-}
-
-// ============================================================================
-// FULL BOOKING VIEW PAGE - INJECT BUTTONS INTO CONTEXT MENUS
-// ============================================================================
-
-async function injectRestaurantButtonsIntoContextMenus(bookingId) {
-  console.log('[Hotel Extension] ===== CONTEXT MENU INJECTION START =====');
-  console.log('[Hotel Extension] Booking ID:', bookingId);
-
-  // Check if document.body exists
-  if (!document.body) {
-    console.log('[Hotel Extension] document.body not available yet, skipping context menu injection');
-    return;
-  }
-
-  console.log('[Hotel Extension] Current processed ID:', document.body.dataset.hotelExtensionContextMenusProcessed);
-
-  // Check if we've already processed context menus for this exact booking
-  const alreadyProcessed = document.body.dataset.hotelExtensionContextMenusProcessed === bookingId;
-
-  if (alreadyProcessed) {
-    console.log('[Hotel Extension] Context menus already processed for this booking, skipping');
-    return;
-  }
-
-  // Mark as processed for this booking ID
-  document.body.dataset.hotelExtensionContextMenusProcessed = bookingId;
-  console.log('[Hotel Extension] Marked as processed for booking:', bookingId);
-
-  // Try to find the context menus
-  console.log('[Hotel Extension] Looking for context menus...');
-
-  // Find all UL elements and LI elements with context-menu in class name
-  const allULs = document.querySelectorAll('ul');
-  console.log('[Hotel Extension] Found', allULs.length, 'total UL elements on page');
-
-  const allContextMenuLIs = document.querySelectorAll('li[class*="context-menu"]');
-  console.log('[Hotel Extension] Found', allContextMenuLIs.length, 'LI elements with context-menu in class');
-
-  // NewBook uses LI elements with classes like "context context-menu-header-*"
-  // We need to find their parent UL elements
-  let headerMenu = null;
-  let footerMenu = null;
-
-  // Look for LI with context-menu-header class and get its parent UL
-  const headerLI = document.querySelector('li[class*="context-menu-header"]');
-  if (headerLI) {
-    headerMenu = headerLI.closest('ul');
-    console.log('[Hotel Extension] Found header menu via LI parent:', headerMenu);
-  }
-
-  // Look for LI with context-menu-footer class and get its parent UL
-  const footerLI = document.querySelector('li[class*="context-menu-footer"]');
-  if (footerLI) {
-    footerMenu = footerLI.closest('ul');
-    console.log('[Hotel Extension] Found footer menu via LI parent:', footerMenu);
-  }
-
-  console.log('[Hotel Extension] Header menu found:', !!headerMenu);
-  console.log('[Hotel Extension] Footer menu found:', !!footerMenu);
-
-  if (!headerMenu && !footerMenu) {
-    console.log('[Hotel Extension] Context menus not found yet, waiting for them to load...');
-
-    // Watch for context menus to appear
-    const menuObserver = new MutationObserver((mutations) => {
-      // Look for LI elements with context-menu classes
-      const headerLI = document.querySelector('li[class*="context-menu-header"]');
-      const footerLI = document.querySelector('li[class*="context-menu-footer"]');
-
-      if (headerLI) {
-        headerMenu = headerLI.closest('ul');
-      }
-      if (footerLI) {
-        footerMenu = footerLI.closest('ul');
-      }
-
-      if (headerMenu || footerMenu) {
-        console.log('[Hotel Extension] Context menu(s) found via observer, injecting buttons...');
-        menuObserver.disconnect();
-
-        // Inject into whichever menus were found
-        if (headerMenu) injectButtonIntoContextMenu(headerMenu, bookingId, 'header');
-        if (footerMenu) injectButtonIntoContextMenu(footerMenu, bookingId, 'footer');
-      }
-    });
-
-    menuObserver.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-
-    // Set timeout to stop observing after 10 seconds if menus don't appear
-    setTimeout(() => {
-      menuObserver.disconnect();
-      console.log('[Hotel Extension] Stopped waiting for context menus (timeout)');
-
-      // One last check
-      const finalHeaderLI = document.querySelector('li[class*="context-menu-header"]');
-      const finalFooterLI = document.querySelector('li[class*="context-menu-footer"]');
-
-      let finalHeaderMenu = null;
-      let finalFooterMenu = null;
-
-      if (finalHeaderLI) {
-        finalHeaderMenu = finalHeaderLI.closest('ul');
-      }
-      if (finalFooterLI) {
-        finalFooterMenu = finalFooterLI.closest('ul');
-      }
-
-      if (finalHeaderMenu || finalFooterMenu) {
-        console.log('[Hotel Extension] Found context menus on final check!');
-        if (finalHeaderMenu) injectButtonIntoContextMenu(finalHeaderMenu, bookingId, 'header');
-        if (finalFooterMenu) injectButtonIntoContextMenu(finalFooterMenu, bookingId, 'footer');
-      } else {
-        console.log('[Hotel Extension] Still no context menus found after timeout');
-      }
-    }, 10000);
-
-    return;
-  }
-
-  // Context menus found immediately, inject buttons
-  console.log('[Hotel Extension] Context menus found immediately, injecting buttons...');
-  if (headerMenu) {
-    await injectButtonIntoContextMenu(headerMenu, bookingId, 'header');
-  }
-  if (footerMenu) {
-    await injectButtonIntoContextMenu(footerMenu, bookingId, 'footer');
-  }
-}
-
-async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
-  console.log('[Hotel Extension] ===== CONTEXT MENU BUTTON INJECTION =====');
-  console.log('[Hotel Extension] Position:', position, '- Booking ID:', bookingId);
-
-  // Check if we've already injected a button here
-  if (contextMenu.querySelector('.hotel-extension-restaurant-menu-item')) {
-    console.log('[Hotel Extension] Button already exists in', position, 'context menu');
-    return;
-  }
-
-  // Fetch restaurant booking data from API
-  const data = await fetchRestaurantBookingData(bookingId);
-
-  console.log('[Hotel Extension] Context menu - API data received:', !!data);
-
-  if (!data) {
-    console.log('[Hotel Extension] No data returned from API for context menu');
-    return;
-  }
-
-  // Get settings for admin URL
-  const result = await chrome.storage.local.get(['settings']);
-  const settings = result.settings || {};
-  const adminBaseUrl = settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
-
-  // Determine button text based on booking status
-  let buttonText = 'View Restaurant';  // Default text if no specific status
-  let buttonIcon = 'fa-utensils';
-  let buttonUrl = `${adminBaseUrl}/booking/${bookingId}`;
-  let primaryMatch = null;
-
-  console.log('[Hotel Extension] Context menu - Checking data structure:', {
-    success: data.success,
-    hasBookings: !!(data.bookings && data.bookings.length > 0),
-    bookingsCount: data.bookings?.length || 0
-  });
-
-  // Check if there are matches
-  if (data.success && data.bookings && data.bookings.length > 0) {
-    const booking = data.bookings[0];
-    let hasMatch = false;
-    let hasSuggestedMatch = false;
-    let hasNoMatch = false;
-
-    console.log('[Hotel Extension] Context menu - Processing', booking.nights?.length || 0, 'nights');
-
-    for (const night of booking.nights || []) {
-      const matchCount = night.match_count || 0;
-
-      console.log('[Hotel Extension] Context menu - Night', night.date, '- match_count:', matchCount);
-
-      if (matchCount > 0 && night.resos_bookings && night.resos_bookings.length > 0) {
-        const match = night.resos_bookings[0];
-        console.log('[Hotel Extension] Context menu - Match found, is_primary:', match.is_primary);
-
-        if (match.is_primary) {
-          hasMatch = true;
-          // Store the first primary match for ResOS link
-          if (!primaryMatch) {
-            primaryMatch = {
-              resos_booking_id: match.resos_booking_id,
-              restaurant_id: match.restaurant_id,
-              booking_date: night.date
-            };
-            console.log('[Hotel Extension] Context menu - Primary match stored:', primaryMatch);
-          }
-        } else {
-          hasSuggestedMatch = true;
-        }
-      } else {
-        hasNoMatch = true;
-      }
-    }
-
-    console.log('[Hotel Extension] Context menu - Match summary:', { hasMatch, hasSuggestedMatch, hasNoMatch });
-
-    // Set button text based on priority
-    if (hasNoMatch) {
-      buttonText = 'Create Booking';
-      buttonIcon = 'fa-plus-circle';
-    } else if (hasSuggestedMatch) {
-      buttonText = 'Check Booking';
-      buttonIcon = 'fa-check-circle';
-    } else if (hasMatch) {
-      buttonText = 'View Booking';
-      buttonIcon = 'fa-eye';
-    }
-  }
-
-  console.log('[Hotel Extension] Context menu - Final button text:', buttonText);
-  console.log('[Hotel Extension] Context menu - Will show ResOS button:', !!primaryMatch);
-
-  // Find the "Options" menu item to insert before it
-  const menuItems = contextMenu.querySelectorAll('li');
-  let optionsItem = null;
-
-  for (const item of menuItems) {
-    const linkText = item.textContent.trim();
-    if (linkText.includes('Options') || linkText.includes('options')) {
-      optionsItem = item;
-      break;
-    }
-  }
-
-  // Create the admin menu item (matching NewBook's style)
-  const menuItem = document.createElement('li');
-  menuItem.className = 'hotel-extension-restaurant-menu-item';
-
-  const link = document.createElement('a');
-  link.href = buttonUrl;
-  link.target = '_blank';
-  link.innerHTML = `
-    <i class="far ${buttonIcon} fa-fw" style="margin-right: 8px;"></i>
-    ${buttonText}
-  `;
-
-  // Add click handler
-  link.addEventListener('click', (e) => {
-    e.preventDefault();
-    window.open(buttonUrl, '_blank');
-  });
-
-  menuItem.appendChild(link);
-
-  // Insert before Options, or at the end if Options not found
-  if (optionsItem) {
-    contextMenu.insertBefore(menuItem, optionsItem);
-    console.log('[Hotel Extension] Inserted Restaurant button before Options in', position, 'context menu');
-  } else {
-    contextMenu.appendChild(menuItem);
-    console.log('[Hotel Extension] Appended Restaurant button to', position, 'context menu');
-  }
-
-  // Add ResOS menu item if there's a primary match
-  if (primaryMatch && primaryMatch.resos_booking_id && primaryMatch.restaurant_id && primaryMatch.booking_date) {
-    const resosUrl = `https://app.resos.com/${primaryMatch.restaurant_id}/bookings/timetable/${primaryMatch.booking_date}/${primaryMatch.resos_booking_id}`;
-
-    const resosMenuItem = document.createElement('li');
-    resosMenuItem.className = 'hotel-extension-resos-menu-item';
-
-    const resosLink = document.createElement('a');
-    resosLink.href = resosUrl;
-    resosLink.target = '_blank';
-    resosLink.innerHTML = `
-      <i class="far fa-external-link fa-fw" style="margin-right: 8px;"></i>
-      View in ResOS
-    `;
-
-    resosLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      window.open(resosUrl, '_blank');
-    });
-
-    resosMenuItem.appendChild(resosLink);
-
-    // Insert ResOS menu item after the admin menu item
-    if (optionsItem) {
-      contextMenu.insertBefore(resosMenuItem, optionsItem);
-      console.log('[Hotel Extension] Inserted ResOS button before Options in', position, 'context menu');
-    } else {
-      contextMenu.appendChild(resosMenuItem);
-      console.log('[Hotel Extension] Appended ResOS button to', position, 'context menu');
-    }
   }
 }
 
