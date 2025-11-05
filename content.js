@@ -949,21 +949,34 @@ async function injectRestaurantButtonsIntoContextMenus(bookingId) {
   // Mark as processed for this booking ID
   document.body.dataset.hotelExtensionContextMenusProcessed = bookingId;
 
-  // Try to find the context menus - NewBook uses UL elements with classes like "context-menu-header-*"
+  // Try to find the context menus
   console.log('[Hotel Extension] Looking for context menus...');
 
-  // Find all UL elements with context-menu in class name
-  const allContextMenus = document.querySelectorAll('ul[class*="context-menu"]');
-  console.log('[Hotel Extension] Found', allContextMenus.length, 'UL elements with context-menu in class');
-  allContextMenus.forEach((menu, index) => {
-    console.log(`[Hotel Extension]   Menu ${index}:`, menu.className, 'id:', menu.id || '(none)');
-  });
+  // Find all UL elements and LI elements with context-menu in class name
+  const allULs = document.querySelectorAll('ul');
+  console.log('[Hotel Extension] Found', allULs.length, 'total UL elements on page');
 
-  // Try different selectors
-  let headerMenu = document.querySelector('ul[class^="context-menu-header"]') ||
-                   document.getElementById('context-menu-header');
-  let footerMenu = document.querySelector('ul[class^="context-menu-footer"]') ||
-                   document.getElementById('context-menu-footer');
+  const allContextMenuLIs = document.querySelectorAll('li[class*="context-menu"]');
+  console.log('[Hotel Extension] Found', allContextMenuLIs.length, 'LI elements with context-menu in class');
+
+  // NewBook uses LI elements with classes like "context context-menu-header-*"
+  // We need to find their parent UL elements
+  let headerMenu = null;
+  let footerMenu = null;
+
+  // Look for LI with context-menu-header class and get its parent UL
+  const headerLI = document.querySelector('li[class*="context-menu-header"]');
+  if (headerLI) {
+    headerMenu = headerLI.closest('ul');
+    console.log('[Hotel Extension] Found header menu via LI parent:', headerMenu);
+  }
+
+  // Look for LI with context-menu-footer class and get its parent UL
+  const footerLI = document.querySelector('li[class*="context-menu-footer"]');
+  if (footerLI) {
+    footerMenu = footerLI.closest('ul');
+    console.log('[Hotel Extension] Found footer menu via LI parent:', footerMenu);
+  }
 
   console.log('[Hotel Extension] Header menu found:', !!headerMenu);
   console.log('[Hotel Extension] Footer menu found:', !!footerMenu);
@@ -973,10 +986,16 @@ async function injectRestaurantButtonsIntoContextMenus(bookingId) {
 
     // Watch for context menus to appear
     const menuObserver = new MutationObserver((mutations) => {
-      headerMenu = document.querySelector('ul[class^="context-menu-header"]') ||
-                   document.getElementById('context-menu-header');
-      footerMenu = document.querySelector('ul[class^="context-menu-footer"]') ||
-                   document.getElementById('context-menu-footer');
+      // Look for LI elements with context-menu classes
+      const headerLI = document.querySelector('li[class*="context-menu-header"]');
+      const footerLI = document.querySelector('li[class*="context-menu-footer"]');
+
+      if (headerLI) {
+        headerMenu = headerLI.closest('ul');
+      }
+      if (footerLI) {
+        footerMenu = footerLI.closest('ul');
+      }
 
       if (headerMenu || footerMenu) {
         console.log('[Hotel Extension] Context menu(s) found via observer, injecting buttons...');
@@ -999,8 +1018,18 @@ async function injectRestaurantButtonsIntoContextMenus(bookingId) {
       console.log('[Hotel Extension] Stopped waiting for context menus (timeout)');
 
       // One last check
-      const finalHeaderMenu = document.querySelector('ul[class^="context-menu-header"]');
-      const finalFooterMenu = document.querySelector('ul[class^="context-menu-footer"]');
+      const finalHeaderLI = document.querySelector('li[class*="context-menu-header"]');
+      const finalFooterLI = document.querySelector('li[class*="context-menu-footer"]');
+
+      let finalHeaderMenu = null;
+      let finalFooterMenu = null;
+
+      if (finalHeaderLI) {
+        finalHeaderMenu = finalHeaderLI.closest('ul');
+      }
+      if (finalFooterLI) {
+        finalFooterMenu = finalFooterLI.closest('ul');
+      }
 
       if (finalHeaderMenu || finalFooterMenu) {
         console.log('[Hotel Extension] Found context menus on final check!');
