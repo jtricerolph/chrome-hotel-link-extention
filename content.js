@@ -289,8 +289,8 @@ async function handleBookingDialog(dialogElement) {
     }
   }
 
-  // Also inject a Restaurant button into the dialog's button pane for quick access
-  await injectRestaurantButtonIntoDialog(dialogElement, bookingId);
+  // Inject a Restaurant row into the dialog's table for quick access
+  await injectRestaurantRowIntoDialog(dialogElement, bookingId);
 }
 
 async function handleEasyToolTipBooking(tooltipElement) {
@@ -581,7 +581,7 @@ async function injectRowIntoTable(table, bookingId) {
   // Fetch restaurant booking data from API
   const data = await fetchRestaurantBookingData(bookingId);
 
-  console.log('[Hotel Extension] Tooltip row injection - API data received:', !!data);
+  console.log('[Hotel Extension] Row injection - API data received:', !!data);
 
   if (!data) {
     console.log('[Hotel Extension] No data returned from API for row injection');
@@ -593,95 +593,82 @@ async function injectRowIntoTable(table, bookingId) {
   const settings = result.settings || {};
   const adminBaseUrl = settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
 
-  // Determine button text and URL based on booking status
-  let buttonText = 'View Restaurant Bookings';
-  let buttonUrl = `${adminBaseUrl}/booking/${bookingId}`;
-  let buttonClass = '';
-  let primaryMatch = null;
-
-  console.log('[Hotel Extension] Tooltip - Checking data structure:', {
+  console.log('[Hotel Extension] Row - Checking data structure:', {
     success: data.success,
     hasBookings: !!(data.bookings && data.bookings.length > 0),
     bookingsCount: data.bookings?.length || 0
   });
 
-  // Check if there are matches
+  // Build buttons - one per night with color coding
+  let buttonsHtml = '';
+
   if (data.success && data.bookings && data.bookings.length > 0) {
     const booking = data.bookings[0];
-    let hasMatch = false;
-    let hasSuggestedMatch = false;
-    let hasNoMatch = false;
-
-    console.log('[Hotel Extension] Tooltip - Processing', booking.nights?.length || 0, 'nights');
+    console.log('[Hotel Extension] Row - Processing', booking.nights?.length || 0, 'nights');
 
     for (const night of booking.nights || []) {
+      const nightDate = night.date;
       const matchCount = night.match_count || 0;
+      const hasPackage = night.has_package || false;
+      const hasMatches = matchCount > 0 && night.resos_bookings && night.resos_bookings.length > 0;
 
-      console.log('[Hotel Extension] Tooltip - Night', night.date, '- match_count:', matchCount, '- has_resos_bookings:', !!(night.resos_bookings && night.resos_bookings.length > 0));
+      let buttonColor, buttonText, buttonTitle, buttonUrl;
 
-      if (matchCount > 0 && night.resos_bookings && night.resos_bookings.length > 0) {
+      // Determine button properties based on match status
+      if (hasPackage && !hasMatches) {
+        // Red: Package night without booking (CRITICAL)
+        buttonColor = '#ef4444';
+        buttonText = formatDateShort(nightDate);
+        buttonTitle = 'Package - No Booking';
+        buttonUrl = `${adminBaseUrl}/booking/${bookingId}?date=${nightDate}`;
+      } else if (hasMatches) {
         const match = night.resos_bookings[0];
-        console.log('[Hotel Extension] Tooltip - Match details:', {
-          is_primary: match.is_primary,
-          resos_booking_id: match.resos_booking_id,
-          restaurant_id: match.restaurant_id,
-          date: night.date
-        });
+        const isPrimary = match.is_primary;
 
-        if (match.is_primary) {
-          hasMatch = true;
-          // Store the first primary match for ResOS link
-          if (!primaryMatch) {
-            primaryMatch = {
-              resos_booking_id: match.resos_booking_id,
-              restaurant_id: match.restaurant_id,
-              booking_date: night.date
-            };
-            console.log('[Hotel Extension] Tooltip - Primary match stored for ResOS button');
+        if (isPrimary) {
+          // Blue: Primary match
+          buttonColor = '#60a5fa';
+          buttonText = formatDateShort(nightDate);
+          buttonTitle = 'Primary Match';
+          // Link to ResOS for primary matches
+          if (match.restaurant_id && match.resos_booking_id) {
+            buttonUrl = `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${nightDate}/${match.resos_booking_id}`;
+          } else {
+            buttonUrl = `${adminBaseUrl}/booking/${bookingId}?date=${nightDate}`;
           }
         } else {
-          hasSuggestedMatch = true;
+          // Amber: Suggested match
+          buttonColor = '#f59e0b';
+          buttonText = formatDateShort(nightDate);
+          buttonTitle = 'Suggested Match';
+          buttonUrl = `${adminBaseUrl}/booking/${bookingId}?date=${nightDate}`;
         }
       } else {
-        hasNoMatch = true;
+        // Dark green: No match (create new)
+        buttonColor = '#10b981';
+        buttonText = formatDateShort(nightDate);
+        buttonTitle = 'Create Booking';
+        buttonUrl = `${adminBaseUrl}/booking/${bookingId}?date=${nightDate}`;
       }
-    }
 
-    console.log('[Hotel Extension] Tooltip - Match summary:', { hasMatch, hasSuggestedMatch, hasNoMatch });
+      console.log('[Hotel Extension] Row - Night', nightDate, '- Color:', buttonColor, '- Title:', buttonTitle);
 
-    // Priority: no match > suggested > matched
-    if (hasNoMatch) {
-      buttonText = 'Create Booking';
-      buttonClass = 'create';
-    } else if (hasSuggestedMatch) {
-      buttonText = 'Check/Update Booking';
-      buttonClass = 'update';
-    } else if (hasMatch) {
-      buttonText = 'View Restaurant Bookings';
-      buttonClass = 'view';
+      // Create button HTML
+      buttonsHtml += `
+        <a href="${buttonUrl}"
+           class="hotel-extension-night-button"
+           target="_blank"
+           title="${buttonTitle}"
+           style="display: inline-block; padding: 4px 8px; background: ${buttonColor}; color: white; text-decoration: none; border-radius: 3px; font-size: 11px; margin: 2px; font-weight: 500; white-space: nowrap;">
+          ${buttonText}
+        </a>
+      `;
     }
   }
 
-  console.log('[Hotel Extension] Tooltip - Final button text:', buttonText);
-  console.log('[Hotel Extension] Tooltip - Will show ResOS button:', !!primaryMatch);
-
-  // Build the buttons HTML
-  let buttonsHtml = `
-    <a href="${buttonUrl}" class="hotel-extension-restaurant-button ${buttonClass}" target="_blank" style="display: inline-block; padding: 6px 12px; background: #4a90e2; color: white; text-decoration: none; border-radius: 4px; font-size: 13px; margin-right: 8px;">
-      <i class="far fa-utensils fa-fw" style="vertical-align: middle; font-size: 14px; margin-right: 4px;"></i>
-      ${buttonText}
-    </a>
-  `;
-
-  // Add ResOS button if there's a primary match
-  if (primaryMatch && primaryMatch.resos_booking_id && primaryMatch.restaurant_id && primaryMatch.booking_date) {
-    const resosUrl = `https://app.resos.com/${primaryMatch.restaurant_id}/bookings/timetable/${primaryMatch.booking_date}/${primaryMatch.resos_booking_id}`;
-    buttonsHtml += `
-      <a href="${resosUrl}" class="hotel-extension-resos-button" target="_blank" style="display: inline-block; padding: 6px 12px; background: #10b981; color: white; text-decoration: none; border-radius: 4px; font-size: 13px;">
-        <i class="far fa-external-link fa-fw" style="vertical-align: middle; font-size: 14px; margin-right: 4px;"></i>
-        View in ResOS
-      </a>
-    `;
+  if (!buttonsHtml) {
+    console.log('[Hotel Extension] No buttons to show');
+    return;
   }
 
   // Create the new row
@@ -700,270 +687,81 @@ async function injectRowIntoTable(table, bookingId) {
 
   // Insert the row at the end of the table
   tbody.appendChild(newRow);
-  console.log('[Hotel Extension] Restaurant row injected into tooltip table');
+  console.log('[Hotel Extension] Restaurant row with', booking.nights?.length || 0, 'night buttons injected');
 }
 
-async function injectRestaurantButtonIntoDialog(dialogElement, bookingId) {
-  console.log('[Hotel Extension] Looking for button pane in dialog...');
+// Helper function to format date as short string (e.g., "Mon 30")
+function formatDateShort(dateString) {
+  const date = new Date(dateString + 'T00:00:00');
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const dayName = days[date.getDay()];
+  const dayNum = date.getDate();
+  return `${dayName} ${dayNum}`;
+}
+
+async function injectRestaurantRowIntoDialog(dialogElement, bookingId) {
+  console.log('[Hotel Extension] Looking for table in dialog...');
   console.log('[Hotel Extension] Dialog element classes:', dialogElement.className);
-  console.log('[Hotel Extension] Dialog has', dialogElement.children.length, 'children');
 
-  // Find the button pane in the dialog
-  let buttonPane = dialogElement.querySelector('.ui-dialog-buttonpane .ui-dialog-buttonset');
+  // Find the content area within the dialog
+  const dialogContent = dialogElement.querySelector('.ui-dialog-content');
 
-  if (!buttonPane) {
-    console.log('[Hotel Extension] No button pane found immediately. Checking what elements exist...');
+  if (!dialogContent) {
+    console.log('[Hotel Extension] No dialog content found');
+    return;
+  }
 
-    // Log all divs with ui-dialog in class name
-    const dialogDivs = dialogElement.querySelectorAll('div[class*="ui-dialog"]');
-    console.log('[Hotel Extension] Found', dialogDivs.length, 'divs with ui-dialog in class name');
-    dialogDivs.forEach((div, index) => {
-      console.log(`[Hotel Extension]   Div ${index}:`, div.className);
-    });
+  // Find the table in the dialog content
+  let table = dialogContent.querySelector('.pretty_table.fieldset_table');
 
-    // Try finding just the button pane without buttonset
-    const buttonPaneOnly = dialogElement.querySelector('.ui-dialog-buttonpane');
-    if (buttonPaneOnly) {
-      console.log('[Hotel Extension] Found button pane without buttonset, children:', buttonPaneOnly.children.length);
-      console.log('[Hotel Extension] Button pane HTML:', buttonPaneOnly.innerHTML.substring(0, 200));
-    }
+  if (!table) {
+    // Try without compound class
+    table = dialogContent.querySelector('.pretty_table');
+  }
 
-    // Button pane hasn't loaded yet - watch for it
-    const buttonPaneObserver = new MutationObserver((mutations) => {
-      buttonPane = dialogElement.querySelector('.ui-dialog-buttonpane .ui-dialog-buttonset');
-      if (buttonPane) {
-        console.log('[Hotel Extension] Button pane loaded via observer, injecting restaurant button...');
-        buttonPaneObserver.disconnect();
+  if (!table) {
+    // Try any table
+    table = dialogContent.querySelector('table');
+  }
 
-        // Now inject the button
-        injectButtonIntoPane(buttonPane, bookingId);
-      } else {
-        // Check if at least button pane appeared
-        const paneOnly = dialogElement.querySelector('.ui-dialog-buttonpane');
-        if (paneOnly) {
-          console.log('[Hotel Extension] Button pane appeared but no buttonset yet, innerHTML:', paneOnly.innerHTML.substring(0, 200));
-        }
+  if (!table) {
+    console.log('[Hotel Extension] No table found in dialog immediately, waiting...');
+
+    // Watch for table to appear
+    const tableObserver = new MutationObserver((mutations) => {
+      table = dialogContent.querySelector('table');
+      if (table) {
+        console.log('[Hotel Extension] Table found in dialog via observer');
+        tableObserver.disconnect();
+        injectRowIntoTable(table, bookingId);
       }
     });
 
-    buttonPaneObserver.observe(dialogElement, {
+    tableObserver.observe(dialogContent, {
       childList: true,
       subtree: true
     });
 
-    // Add timeout fallback
+    // Timeout fallback
     setTimeout(() => {
-      buttonPane = dialogElement.querySelector('.ui-dialog-buttonpane .ui-dialog-buttonset');
-      if (buttonPane && !buttonPane.querySelector('.hotel-extension-restaurant-btn')) {
-        console.log('[Hotel Extension] Button pane found via timeout, injecting...');
-        buttonPaneObserver.disconnect();
-        injectButtonIntoPane(buttonPane, bookingId);
+      table = dialogContent.querySelector('table');
+      if (table && !table.querySelector('.hotel-extension-night-button')) {
+        console.log('[Hotel Extension] Table found in dialog via timeout');
+        tableObserver.disconnect();
+        injectRowIntoTable(table, bookingId);
       } else {
-        console.log('[Hotel Extension] Timeout: Still no button pane found');
-        const paneOnly = dialogElement.querySelector('.ui-dialog-buttonpane');
-        if (paneOnly) {
-          console.log('[Hotel Extension] Timeout: But button pane exists without buttonset:', paneOnly.innerHTML);
-        }
+        console.log('[Hotel Extension] Timeout: No table found in dialog');
       }
     }, 1000);
 
     return;
   }
 
-  console.log('[Hotel Extension] Button pane already loaded, injecting restaurant button...');
-  await injectButtonIntoPane(buttonPane, bookingId);
+  console.log('[Hotel Extension] Table found in dialog, injecting restaurant row...');
+  await injectRowIntoTable(table, bookingId);
 }
 
-async function injectButtonIntoPane(buttonPane, bookingId) {
-  // Fetch restaurant booking data from API
-  const data = await fetchRestaurantBookingData(bookingId);
-
-  console.log('[Hotel Extension] Dialog button injection - API data received:', !!data);
-
-  if (!data) {
-    console.log('[Hotel Extension] No data returned from API for dialog button');
-    return;
-  }
-
-  // Get settings for admin URL
-  const result = await chrome.storage.local.get(['settings']);
-  const settings = result.settings || {};
-  const adminBaseUrl = settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
-
-  // Determine button text based on booking status
-  let buttonText = 'View Restaurant';  // Default text if no data available
-  let buttonIcon = 'fa-utensils';
-  let buttonUrl = `${adminBaseUrl}/booking/${bookingId}`;
-  let primaryMatch = null;
-
-  console.log('[Hotel Extension] Dialog - Checking data structure:', {
-    success: data.success,
-    hasBookings: !!(data.bookings && data.bookings.length > 0),
-    bookingsCount: data.bookings?.length || 0
-  });
-
-  // Check if there are matches
-  if (data.success && data.bookings && data.bookings.length > 0) {
-    const booking = data.bookings[0];
-    let hasMatch = false;
-    let hasSuggestedMatch = false;
-    let hasNoMatch = false;
-
-    console.log('[Hotel Extension] Dialog - Processing', booking.nights?.length || 0, 'nights');
-
-    for (const night of booking.nights || []) {
-      const matchCount = night.match_count || 0;
-
-      console.log('[Hotel Extension] Dialog - Night', night.date, '- match_count:', matchCount);
-
-      if (matchCount > 0 && night.resos_bookings && night.resos_bookings.length > 0) {
-        const match = night.resos_bookings[0];
-        console.log('[Hotel Extension] Dialog - Match found, is_primary:', match.is_primary);
-
-        if (match.is_primary) {
-          hasMatch = true;
-          // Store the first primary match for ResOS link
-          if (!primaryMatch) {
-            primaryMatch = {
-              resos_booking_id: match.resos_booking_id,
-              restaurant_id: match.restaurant_id,
-              booking_date: night.date
-            };
-            console.log('[Hotel Extension] Dialog - Primary match stored:', primaryMatch);
-          }
-        } else {
-          hasSuggestedMatch = true;
-        }
-      } else {
-        hasNoMatch = true;
-      }
-    }
-
-    console.log('[Hotel Extension] Dialog - Match summary:', { hasMatch, hasSuggestedMatch, hasNoMatch });
-
-    // Set button text based on priority
-    if (hasNoMatch) {
-      buttonText = 'Create Booking';
-    } else if (hasSuggestedMatch) {
-      buttonText = 'Check Booking';
-    } else if (hasMatch) {
-      buttonText = 'View Booking';
-    }
-  }
-
-  console.log('[Hotel Extension] Dialog - Final button text:', buttonText);
-  console.log('[Hotel Extension] Dialog - Primary match for ResOS:', !!primaryMatch);
-
-  // Create the admin button (matching NewBook's button style)
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'ui-button ui-corner-all ui-widget hotel-extension-restaurant-btn';
-  button.innerHTML = `
-    <span class="ui-button-icon ui-icon ${buttonIcon}"></span>
-    <span class="ui-button-icon-space"> </span>
-    ${buttonText}
-  `;
-
-  // Add click handler to open URL in new tab
-  button.addEventListener('click', () => {
-    window.open(buttonUrl, '_blank');
-  });
-
-  // Find the Close button position
-  const closeButton = buttonPane.querySelector('button:last-child');
-
-  // Insert admin button before the Close button
-  if (closeButton) {
-    buttonPane.insertBefore(button, closeButton);
-  } else {
-    buttonPane.appendChild(button);
-  }
-
-  // Add ResOS button if there's a primary match
-  if (primaryMatch && primaryMatch.resos_booking_id && primaryMatch.restaurant_id && primaryMatch.booking_date) {
-    const resosUrl = `https://app.resos.com/${primaryMatch.restaurant_id}/bookings/timetable/${primaryMatch.booking_date}/${primaryMatch.resos_booking_id}`;
-
-    const resosButton = document.createElement('button');
-    resosButton.type = 'button';
-    resosButton.className = 'ui-button ui-corner-all ui-widget hotel-extension-resos-btn';
-    resosButton.style.cssText = 'background-color: #10b981; border-color: #10b981;';
-    resosButton.innerHTML = `
-      <span class="ui-button-icon ui-icon fa-external-link"></span>
-      <span class="ui-button-icon-space"> </span>
-      View in ResOS
-    `;
-
-    resosButton.addEventListener('click', () => {
-      window.open(resosUrl, '_blank');
-    });
-
-    // Insert ResOS button before the Close button (after admin button)
-    if (closeButton) {
-      buttonPane.insertBefore(resosButton, closeButton);
-    } else {
-      buttonPane.appendChild(resosButton);
-    }
-
-    console.log('[Hotel Extension] Restaurant and ResOS buttons injected into dialog');
-  } else {
-    console.log('[Hotel Extension] Restaurant button injected into dialog');
-  }
-}
-
-function injectRestaurantInfoIntoDialog(firstFieldset, data, bookingId) {
-  // Create a container for our restaurant booking info
-  const container = document.createElement('fieldset');
-  container.className = 'pretty_fieldset';
-  container.style.cssText = 'margin: 10px 0; border: 2px solid #4a90e2; background: #f8f9fa;';
-
-  const legend = document.createElement('legend');
-  legend.style.cssText = 'color: #4a90e2; font-weight: bold; padding: 0 10px;';
-  legend.innerHTML = '🍽️ Restaurant Bookings';
-  container.appendChild(legend);
-
-  const contentDiv = document.createElement('div');
-  contentDiv.style.cssText = 'padding: 15px;';
-
-  if (data.html) {
-    // API returned HTML to display
-    contentDiv.innerHTML = data.html;
-  } else if (data.hasMatches === false || data.matches === 0) {
-    // No matches found
-    contentDiv.innerHTML = `
-      <div style="text-align: center; padding: 10px;">
-        <p style="color: #666; margin-bottom: 10px;">No restaurant bookings found for this guest.</p>
-        <a href="https://admin.hotelnumberfour.com/booking/${bookingId}"
-           target="_blank"
-           style="display: inline-block; padding: 8px 16px; background: #4a90e2; color: white; text-decoration: none; border-radius: 4px;">
-          Open in Admin System →
-        </a>
-      </div>
-    `;
-  } else if (data.error) {
-    // Error from API
-    contentDiv.innerHTML = `
-      <div style="text-align: center; padding: 10px; color: #d32f2f;">
-        <p>⚠️ Error: ${escapeHtml(data.error)}</p>
-      </div>
-    `;
-  } else {
-    // Unexpected format
-    contentDiv.innerHTML = `
-      <div style="text-align: center; padding: 10px;">
-        <a href="https://admin.hotelnumberfour.com/booking/${bookingId}"
-           target="_blank"
-           style="display: inline-block; padding: 8px 16px; background: #4a90e2; color: white; text-decoration: none; border-radius: 4px;">
-          Check Admin System →
-        </a>
-      </div>
-    `;
-  }
-
-  container.appendChild(contentDiv);
-
-  // Insert after the first fieldset (after mandatory information)
-  firstFieldset.parentNode.insertBefore(container, firstFieldset.nextSibling);
-}
+// Old button pane injection functions removed - now using table row injection instead
 
 function escapeHtml(text) {
   const div = document.createElement('div');
