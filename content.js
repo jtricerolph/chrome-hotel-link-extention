@@ -297,10 +297,20 @@ async function handleBookingDialog(dialogElement) {
     }
   }
 
-  // Inject a Restaurant row into the dialog's table for quick access
-  await injectRestaurantRowIntoDialog(dialogElement, bookingId);
+  // Get behavior settings
+  const settingsResult = await chrome.storage.local.get(['settings']);
+  const settings = settingsResult.settings || {};
+  const enableDialogInjection = settings.enableDialogInjection !== undefined ? settings.enableDialogInjection : true;
+  const autoPopupDelay = settings.autoPopupDelay || 2500;
 
-  // Trigger the extension popup for alerts/warnings after 2500ms delay
+  // Inject a Restaurant row into the dialog's table for quick access (if enabled)
+  if (enableDialogInjection) {
+    await injectRestaurantRowIntoDialog(dialogElement, bookingId);
+  } else {
+    console.log('[Hotel Extension] Dialog injection disabled in settings, skipping');
+  }
+
+  // Trigger the extension popup for alerts/warnings after configured delay
   setTimeout(() => {
     // Check if dialog is still visible before triggering popup
     if (!document.body.contains(dialogElement)) {
@@ -316,7 +326,7 @@ async function handleBookingDialog(dialogElement) {
       return;
     }
 
-    console.log('[Hotel Extension] Dialog remained visible for 2.5s, triggering popup check...');
+    console.log(`[Hotel Extension] Dialog remained visible for ${autoPopupDelay}ms, triggering popup check...`);
     if (chrome.runtime?.id) {
       try {
         chrome.runtime.sendMessage({
@@ -328,7 +338,7 @@ async function handleBookingDialog(dialogElement) {
         console.error('[Hotel Extension] Failed to send message to background:', error);
       }
     }
-  }, 2500);
+  }, autoPopupDelay);
 }
 
 async function handleEasyToolTipBooking(tooltipElement) {
@@ -365,7 +375,21 @@ async function handleEasyToolTipBooking(tooltipElement) {
   // Mark as "pending" to prevent duplicate processing
   tooltipElement.dataset.hotelExtensionPending = 'true';
 
-  // Add a 1000ms delay before processing API call - only process if tooltip is still visible
+  // Get behavior settings
+  const settingsResult = await chrome.storage.local.get(['settings']);
+  const settings = settingsResult.settings || {};
+  const enablePlannerHover = settings.enablePlannerHover !== undefined ? settings.enablePlannerHover : true;
+  const hoverDelay = settings.hoverDelay || 500;
+  const autoPopupDelay = settings.autoPopupDelay || 2500;
+
+  // Check if planner hover injection is enabled
+  if (!enablePlannerHover) {
+    console.log('[Hotel Extension] Planner hover injection disabled in settings, skipping');
+    delete tooltipElement.dataset.hotelExtensionPending;
+    return;
+  }
+
+  // Add configured delay before processing API call - only process if tooltip is still visible
   // This prevents API bombardment when quickly moving mouse across the planner
   setTimeout(async () => {
     // Check if tooltip still exists and is visible
@@ -386,7 +410,7 @@ async function handleEasyToolTipBooking(tooltipElement) {
     tooltipElement.dataset.hotelExtensionProcessed = 'true';
     delete tooltipElement.dataset.hotelExtensionPending;
 
-    console.log('[Hotel Extension] Tooltip remained visible for 1s, processing booking:', bookingId);
+    console.log(`[Hotel Extension] Tooltip remained visible for ${hoverDelay}ms, processing booking:`, bookingId);
 
     // Store the current booking ID for the extension popup
     if (chrome.runtime?.id) {
@@ -398,10 +422,10 @@ async function handleEasyToolTipBooking(tooltipElement) {
       }
     }
 
-    // Inject a Restaurant row into the table for quick access (at 1000ms)
+    // Inject a Restaurant row into the table for quick access
     await injectRestaurantRowIntoTooltip(tooltipElement, bookingId);
 
-    // Trigger the extension popup for alerts/warnings with additional delay (2500ms total)
+    // Trigger the extension popup for alerts/warnings with configured delay
     // This prevents popup spam when quickly scanning bookings
     setTimeout(() => {
       // Check again if tooltip is still visible before triggering popup
@@ -418,7 +442,7 @@ async function handleEasyToolTipBooking(tooltipElement) {
         return;
       }
 
-      console.log('[Hotel Extension] Tooltip remained visible for 2.5s, triggering popup check...');
+      console.log(`[Hotel Extension] Tooltip remained visible for ${autoPopupDelay}ms, triggering popup check...`);
       if (chrome.runtime?.id) {
         try {
           chrome.runtime.sendMessage({
@@ -430,8 +454,8 @@ async function handleEasyToolTipBooking(tooltipElement) {
           console.error('[Hotel Extension] Failed to send message to background:', error);
         }
       }
-    }, 1500); // Additional 1500ms delay (2500ms total from initial hover)
-  }, 1000); // 1000ms delay for API call
+    }, autoPopupDelay - hoverDelay); // Additional delay (autoPopupDelay total from initial hover)
+  }, hoverDelay); // Configured hover delay for API call
 }
 
 async function injectRestaurantInfoAsTab(tabContent, bookingId) {
@@ -1823,7 +1847,7 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
 // ============================================================================
 // Detect if we're on a booking page and store the booking ID for the popup
 
-function updateCurrentBookingId() {
+async function updateCurrentBookingId() {
   console.log('[Hotel Extension] updateCurrentBookingId called, URL:', window.location.href);
 
   // Check if we're on a booking_view page
@@ -1844,7 +1868,12 @@ function updateCurrentBookingId() {
     console.log('[Hotel Extension] Calling injectRestaurantRowIntoFullBookingView...');
     injectRestaurantRowIntoFullBookingView(bookingId);
 
-    // Trigger the extension popup for alerts/warnings after 2500ms delay
+    // Get behavior settings for auto-popup delay
+    const settingsResult = await chrome.storage.local.get(['settings']);
+    const settings = settingsResult.settings || {};
+    const autoPopupDelay = settings.autoPopupDelay || 2500;
+
+    // Trigger the extension popup for alerts/warnings after configured delay
     setTimeout(() => {
       // Verify we're still on the same booking page
       const currentUrlMatch = window.location.href.match(/\/bookings_view\/(\d+)/);
@@ -1853,7 +1882,7 @@ function updateCurrentBookingId() {
         return;
       }
 
-      console.log('[Hotel Extension] Still on booking page after 2.5s, triggering popup check...');
+      console.log(`[Hotel Extension] Still on booking page after ${autoPopupDelay}ms, triggering popup check...`);
       if (chrome.runtime?.id) {
         try {
           chrome.runtime.sendMessage({
@@ -1865,7 +1894,7 @@ function updateCurrentBookingId() {
           console.error('[Hotel Extension] Failed to send message to background:', error);
         }
       }
-    }, 2500);
+    }, autoPopupDelay);
   } else {
     console.log('[Hotel Extension] Not on a booking page');
     // Not on a booking page, clear the stored ID

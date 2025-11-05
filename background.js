@@ -138,16 +138,26 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
 
       // Auto-open popup if there are any warnings or critical alerts
       // OR if API explicitly says to auto-open (package booking without reservation)
-      if (data.should_auto_open || hasPackageAlert || hasWarnings) {
-        console.log('[Background] Auto-opening popup (has alerts/warnings)');
-        try {
-          await chrome.action.openPopup();
-          console.log('[Background] Popup opened successfully');
-        } catch (error) {
-          // openPopup may fail if not called from user action in some cases
-          // This is expected behavior, just log it
-          console.log('[Background] Auto-open triggered but popup opening restricted:', error.message);
-        }
+      // Check if auto-popup is enabled in settings
+      const autoPopupResult = await chrome.storage.local.get(['settings']);
+      const autoPopupSettings = autoPopupResult.settings || {};
+      const enableAutoPopup = autoPopupSettings.enableAutoPopup !== undefined ? autoPopupSettings.enableAutoPopup : true;
+      const autoPopupDelay = autoPopupSettings.autoPopupDelay || 2500;
+
+      if (enableAutoPopup && (data.should_auto_open || hasPackageAlert || hasWarnings)) {
+        console.log('[Background] Auto-opening popup in', autoPopupDelay, 'ms (has alerts/warnings)');
+        setTimeout(async () => {
+          try {
+            await chrome.action.openPopup();
+            console.log('[Background] Popup opened successfully');
+          } catch (error) {
+            // openPopup may fail if not called from user action in some cases
+            // This is expected behavior, just log it
+            console.log('[Background] Auto-open triggered but popup opening restricted:', error.message);
+          }
+        }, autoPopupDelay);
+      } else if (!enableAutoPopup) {
+        console.log('[Background] Auto-popup disabled in settings, skipping popup');
       }
     } else {
       // API error, show neutral badge
@@ -257,7 +267,13 @@ chrome.runtime.onInstalled.addListener(() => {
           apiEndpoint: 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match',
           adminBaseUrl: 'https://n4admindev.pterois.co.uk',
           wpUsername: '',
-          wpAppPassword: ''
+          wpAppPassword: '',
+          // Behavior settings
+          enableDialogInjection: true,
+          enablePlannerHover: true,
+          enableAutoPopup: true,
+          autoPopupDelay: 2500,
+          hoverDelay: 500
         }
       });
       console.log('[Background] Default settings initialized');

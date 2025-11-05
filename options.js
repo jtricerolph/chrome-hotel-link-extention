@@ -5,7 +5,13 @@ const DEFAULT_SETTINGS = {
   apiEndpoint: 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match',
   adminBaseUrl: 'https://n4admindev.pterois.co.uk',
   wpUsername: '',
-  wpAppPassword: ''
+  wpAppPassword: '',
+  // Behavior settings
+  enableDialogInjection: true,
+  enablePlannerHover: true,
+  enableAutoPopup: true,
+  autoPopupDelay: 2500,  // milliseconds
+  hoverDelay: 500  // milliseconds
 };
 
 // Load saved settings when page loads
@@ -25,6 +31,13 @@ async function loadSettings() {
     document.getElementById('adminBaseUrl').value = settings.adminBaseUrl || DEFAULT_SETTINGS.adminBaseUrl;
     document.getElementById('wpUsername').value = settings.wpUsername || DEFAULT_SETTINGS.wpUsername;
     document.getElementById('wpAppPassword').value = settings.wpAppPassword || DEFAULT_SETTINGS.wpAppPassword;
+
+    // Load behavior settings
+    document.getElementById('enableDialogInjection').checked = settings.enableDialogInjection !== undefined ? settings.enableDialogInjection : DEFAULT_SETTINGS.enableDialogInjection;
+    document.getElementById('enablePlannerHover').checked = settings.enablePlannerHover !== undefined ? settings.enablePlannerHover : DEFAULT_SETTINGS.enablePlannerHover;
+    document.getElementById('enableAutoPopup').checked = settings.enableAutoPopup !== undefined ? settings.enableAutoPopup : DEFAULT_SETTINGS.enableAutoPopup;
+    document.getElementById('autoPopupDelay').value = settings.autoPopupDelay || DEFAULT_SETTINGS.autoPopupDelay;
+    document.getElementById('hoverDelay').value = settings.hoverDelay || DEFAULT_SETTINGS.hoverDelay;
 
     console.log('Settings loaded (credentials hidden)');
   } catch (error) {
@@ -67,11 +80,23 @@ async function saveSettings() {
     // WordPress generates them with spaces for readability, but HTTP Basic Auth needs them without spaces
     const cleanedPassword = wpAppPassword.replace(/\s+/g, '');
 
+    // Get behavior settings
+    const enableDialogInjection = document.getElementById('enableDialogInjection').checked;
+    const enablePlannerHover = document.getElementById('enablePlannerHover').checked;
+    const enableAutoPopup = document.getElementById('enableAutoPopup').checked;
+    const autoPopupDelay = parseInt(document.getElementById('autoPopupDelay').value) || DEFAULT_SETTINGS.autoPopupDelay;
+    const hoverDelay = parseInt(document.getElementById('hoverDelay').value) || DEFAULT_SETTINGS.hoverDelay;
+
     const settings = {
       apiEndpoint: apiEndpoint,
       adminBaseUrl: adminBaseUrl,
       wpUsername: wpUsername,
-      wpAppPassword: cleanedPassword
+      wpAppPassword: cleanedPassword,
+      enableDialogInjection: enableDialogInjection,
+      enablePlannerHover: enablePlannerHover,
+      enableAutoPopup: enableAutoPopup,
+      autoPopupDelay: autoPopupDelay,
+      hoverDelay: hoverDelay
     };
 
     await chrome.storage.local.set({ settings: settings });
@@ -95,6 +120,15 @@ async function resetSettings() {
 
     document.getElementById('apiEndpoint').value = DEFAULT_SETTINGS.apiEndpoint;
     document.getElementById('adminBaseUrl').value = DEFAULT_SETTINGS.adminBaseUrl;
+    document.getElementById('wpUsername').value = DEFAULT_SETTINGS.wpUsername;
+    document.getElementById('wpAppPassword').value = DEFAULT_SETTINGS.wpAppPassword;
+
+    // Reset behavior settings
+    document.getElementById('enableDialogInjection').checked = DEFAULT_SETTINGS.enableDialogInjection;
+    document.getElementById('enablePlannerHover').checked = DEFAULT_SETTINGS.enablePlannerHover;
+    document.getElementById('enableAutoPopup').checked = DEFAULT_SETTINGS.enableAutoPopup;
+    document.getElementById('autoPopupDelay').value = DEFAULT_SETTINGS.autoPopupDelay;
+    document.getElementById('hoverDelay').value = DEFAULT_SETTINGS.hoverDelay;
 
     console.log('Settings reset to defaults');
     showStatus('Settings reset to defaults', 'success');
