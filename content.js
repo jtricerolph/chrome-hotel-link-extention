@@ -988,8 +988,14 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   // Check if row already exists
   const existingRow = tbody.querySelector('tr[data-hotel-extension="restaurant"]');
   if (existingRow) {
-    console.log('[Hotel Extension] Restaurant row already exists, skipping');
-    return;
+    const existingBookingId = existingRow.getAttribute('data-booking-id');
+    if (existingBookingId === String(bookingId)) {
+      console.log('[Hotel Extension] Restaurant row already exists for this booking, skipping');
+      return;
+    } else {
+      console.log(`[Hotel Extension] Restaurant row exists but for different booking (${existingBookingId} vs ${bookingId}), removing old row...`);
+      existingRow.remove();
+    }
   }
 
   console.log('[Hotel Extension] Fetching booking data from API...');
@@ -1158,6 +1164,7 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   const rowCount = tbody.querySelectorAll('tr').length;
   newRow.className = rowCount % 2 === 0 ? 'odd' : 'even';
   newRow.setAttribute('data-hotel-extension', 'restaurant');
+  newRow.setAttribute('data-booking-id', bookingId); // Store booking ID to detect stale rows
 
   // Force visibility with inline styles
   newRow.style.display = 'table-row';
