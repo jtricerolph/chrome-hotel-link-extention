@@ -185,11 +185,21 @@ chrome.runtime.onInstalled.addListener(() => {
     documentUrlPatterns: ['https://appeu.newbook.cloud/*']
   });
 
-  // Set default settings
-  chrome.storage.local.set({
-    settings: {
-      apiEndpoint: 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match',
-      adminBaseUrl: 'https://n4admindev.pterois.co.uk'
+  // Set default settings only if they don't exist (don't overwrite existing settings)
+  chrome.storage.local.get(['settings'], (result) => {
+    if (!result.settings) {
+      // No settings exist, set defaults
+      chrome.storage.local.set({
+        settings: {
+          apiEndpoint: 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match',
+          adminBaseUrl: 'https://n4admindev.pterois.co.uk',
+          wpUsername: '',
+          wpAppPassword: ''
+        }
+      });
+      console.log('[Background] Default settings initialized');
+    } else {
+      console.log('[Background] Existing settings preserved');
     }
   });
 });
