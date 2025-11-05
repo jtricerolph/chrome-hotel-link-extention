@@ -1083,6 +1083,12 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   newRow.className = rowCount % 2 === 0 ? 'odd' : 'even';
   newRow.setAttribute('data-hotel-extension', 'restaurant');
 
+  // Force visibility with inline styles
+  newRow.style.display = 'table-row';
+  newRow.style.visibility = 'visible';
+  newRow.style.height = 'auto';
+  newRow.style.minHeight = '30px';
+
   // Use 5-column format: labeler (15%) | view_value (34.5%) | spacer | labeler (15%) | view_value (34.5%)
   newRow.innerHTML = `
     <td class="labeler" style="width: 15%;">
@@ -1118,8 +1124,34 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
         height: computedStyle.height,
         maxHeight: computedStyle.maxHeight,
         overflow: computedStyle.overflow,
-        opacity: computedStyle.opacity
+        opacity: computedStyle.opacity,
+        minHeight: computedStyle.minHeight
       });
+
+      // Check bounding box
+      const rect = checkRow.getBoundingClientRect();
+      console.log('[Hotel Extension] Row bounding box:', {
+        width: rect.width,
+        height: rect.height,
+        top: rect.top,
+        left: rect.left
+      });
+
+      // Check first cell
+      const firstCell = checkRow.querySelector('td');
+      if (firstCell) {
+        const cellStyle = window.getComputedStyle(firstCell);
+        const cellRect = firstCell.getBoundingClientRect();
+        console.log('[Hotel Extension] First cell computed styles:', {
+          display: cellStyle.display,
+          height: cellStyle.height,
+          padding: cellStyle.padding
+        });
+        console.log('[Hotel Extension] First cell bounding box:', {
+          width: cellRect.width,
+          height: cellRect.height
+        });
+      }
 
       // Check table styles
       const tableStyle = window.getComputedStyle(table);
