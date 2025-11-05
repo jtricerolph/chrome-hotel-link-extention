@@ -1281,74 +1281,6 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
     }
   }, 1000);
 
-  // Set up GLOBAL observer to watch for NewBook replacing the entire table hierarchy
-  // NewBook creates new tables and removes old ones, so we need to watch at document.body level
-  console.log('[Hotel Extension] Setting up global table replacement observer...');
-
-  let reinjectionInProgress = false; // Prevent concurrent re-injections
-
-  const globalTableObserver = new MutationObserver((mutations) => {
-    // Debounce - don't check on every single mutation
-    if (reinjectionInProgress) return;
-
-    // Check if there's a visible table WITHOUT our row
-    const allTables = document.querySelectorAll('.pretty_table.fieldset_table');
-    let visibleTableWithoutRow = null;
-    let hasOurRowAnywhere = false;
-
-    for (const tbl of allTables) {
-      const rect = tbl.getBoundingClientRect();
-      const isVisible = rect.width > 0 && rect.height > 0;
-      const tbody = tbl.querySelector('tbody');
-      const hasRow = tbody ? tbody.querySelector('tr[data-hotel-extension="restaurant"]') : false;
-
-      if (hasRow) {
-        hasOurRowAnywhere = true;
-        // Check if the row's table is actually visible
-        if (!isVisible) {
-          console.log('[Hotel Extension] Our row exists but table is hidden - need to re-inject');
-          visibleTableWithoutRow = Array.from(allTables).find(t => {
-            const r = t.getBoundingClientRect();
-            return r.width > 0 && r.height > 0;
-          });
-          break;
-        }
-      } else if (isVisible && !visibleTableWithoutRow) {
-        visibleTableWithoutRow = tbl;
-      }
-    }
-
-    // If our row is in a hidden table, or doesn't exist in any visible table, re-inject
-    if (visibleTableWithoutRow && (!hasOurRowAnywhere || hasOurRowAnywhere)) {
-      const needsReinject = !hasOurRowAnywhere || (() => {
-        // Check if our row is visible
-        const ourRow = document.querySelector('tr[data-hotel-extension="restaurant"]');
-        if (!ourRow) return true;
-        const rowRect = ourRow.getBoundingClientRect();
-        return rowRect.width === 0 && rowRect.height === 0;
-      })();
-
-      if (needsReinject) {
-        console.log('[Hotel Extension] Table was replaced by NewBook - re-injecting into new visible table...');
-        reinjectionInProgress = true;
-        globalTableObserver.disconnect();
-
-        // Re-inject after a short delay to let NewBook finish rendering
-        setTimeout(() => {
-          injectRowIntoFullBookingTable(visibleTableWithoutRow, bookingId).finally(() => {
-            reinjectionInProgress = false;
-          });
-        }, 100);
-      }
-    }
-  });
-
-  // Observe the entire document body for table changes
-  globalTableObserver.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
-
   } catch (error) {
     console.error('[Hotel Extension] Fatal error in injectRowIntoFullBookingTable:', error.message);
     console.error('[Hotel Extension] Stack trace:', error.stack);
@@ -1708,3 +1640,71 @@ setInterval(() => {
 
 // Log for debugging
 console.log('Hotel Number Four - Booking Assistant extension loaded');
+
+// ============================================================================
+// GLOBAL TABLE REPLACEMENT OBSERVER
+// ============================================================================
+// Single observer to watch for NewBook replacing tables after injection
+// Uses current URL to determine which booking to re-inject
+
+let reinjectionInProgress = false; // Prevent concurrent re-injections
+
+const globalTableObserver = new MutationObserver((mutations) => {
+  // Only run if we're on a booking view page
+  const urlMatch = window.location.href.match(/\/bookings_view\/(\d+)/);
+  if (!urlMatch) return;
+
+  const currentBookingId = urlMatch[1];
+
+  // Debounce - don't check on every single mutation
+  if (reinjectionInProgress) return;
+
+  // Check if there's a visible table WITHOUT our row (or with wrong booking ID)
+  const allTables = document.querySelectorAll('.pretty_table.fieldset_table');
+  let visibleTableWithoutRow = null;
+  let hasCorrectRowInVisibleTable = false;
+
+  for (const tbl of allTables) {
+    const rect = tbl.getBoundingClientRect();
+    const isVisible = rect.width > 0 && rect.height > 0;
+    const tbody = tbl.querySelector('tbody');
+    const existingRow = tbody ? tbody.querySelector('tr[data-hotel-extension="restaurant"]') : null;
+
+    if (isVisible) {
+      if (existingRow) {
+        const existingBookingId = existingRow.getAttribute('data-booking-id');
+        if (existingBookingId === currentBookingId) {
+          hasCorrectRowInVisibleTable = true;
+          break; // We have the right row in a visible table, all good!
+        } else {
+          // Wrong booking ID in visible table
+          visibleTableWithoutRow = tbl;
+        }
+      } else {
+        // No row in visible table
+        visibleTableWithoutRow = tbl;
+      }
+    }
+  }
+
+  // Re-inject if we found a visible table without the correct row
+  if (visibleTableWithoutRow && !hasCorrectRowInVisibleTable) {
+    console.log('[Hotel Extension] Table replacement detected - re-injecting into visible table...');
+    reinjectionInProgress = true;
+
+    // Re-inject after a short delay to let NewBook finish rendering
+    setTimeout(() => {
+      injectRowIntoFullBookingTable(visibleTableWithoutRow, currentBookingId).finally(() => {
+        reinjectionInProgress = false;
+      });
+    }, 100);
+  }
+});
+
+// Start observing the entire document body for table changes
+globalTableObserver.observe(document.body, {
+  childList: true,
+  subtree: true
+});
+
+console.log('[Hotel Extension] Global table replacement observer started');
