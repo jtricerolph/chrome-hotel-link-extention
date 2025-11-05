@@ -820,8 +820,11 @@ if (document.readyState === 'loading') {
 // ============================================================================
 
 async function injectRestaurantRowIntoFullBookingView(bookingId) {
+  console.log('[Hotel Extension] injectRestaurantRowIntoFullBookingView called for booking:', bookingId);
+
   // Check if document.body exists
   if (!document.body) {
+    console.log('[Hotel Extension] document.body not available, will retry');
     // Wait for DOMContentLoaded and try again
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
@@ -842,13 +845,16 @@ async function injectRestaurantRowIntoFullBookingView(bookingId) {
 
   // Try to find the booking details table
   let table = document.querySelector('.pretty_table.fieldset_table');
+  console.log('[Hotel Extension] Table search result:', table ? 'FOUND' : 'NOT FOUND');
 
   if (!table) {
+    console.log('[Hotel Extension] Table not found, setting up observer...');
 
     // Set up observer to wait for table to load
     const tableObserver = new MutationObserver((mutations) => {
       const foundTable = document.querySelector('.pretty_table.fieldset_table');
       if (foundTable) {
+        console.log('[Hotel Extension] Table found via observer!');
         tableObserver.disconnect();
         injectRowIntoFullBookingTable(foundTable, bookingId);
       }
@@ -878,6 +884,8 @@ async function injectRestaurantRowIntoFullBookingView(bookingId) {
 
 // Helper function to inject row into full booking view table (5-column format)
 async function injectRowIntoFullBookingTable(table, bookingId) {
+  console.log('[Hotel Extension] injectRowIntoFullBookingTable called for booking:', bookingId);
+
   // Ensure Material Symbols font is loaded
   if (!document.querySelector('link[href*="Material+Symbols+Outlined"]')) {
     const fontLink = document.createElement('link');
@@ -889,19 +897,24 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   // Find tbody
   const tbody = table.querySelector('tbody');
   if (!tbody) {
+    console.log('[Hotel Extension] No tbody found in table');
     return;
   }
 
   // Check if row already exists
   const existingRow = tbody.querySelector('tr[data-hotel-extension="restaurant"]');
   if (existingRow) {
+    console.log('[Hotel Extension] Restaurant row already exists, skipping');
     return;
   }
 
+  console.log('[Hotel Extension] Fetching booking data from API...');
   // Fetch booking data from API - use JSON context for structured data
   const data = await fetchRestaurantBookingDataJSON(bookingId);
 
+  console.log('[Hotel Extension] API response:', data ? 'SUCCESS' : 'FAILED');
   if (!data || !data.success || !data.bookings || data.bookings.length === 0) {
+    console.log('[Hotel Extension] No valid booking data received');
     return;
   }
 
@@ -1336,11 +1349,14 @@ async function injectButtonIntoContextMenu(contextMenu, bookingId, position) {
 // Detect if we're on a booking page and store the booking ID for the popup
 
 function updateCurrentBookingId() {
+  console.log('[Hotel Extension] updateCurrentBookingId called, URL:', window.location.href);
+
   // Check if we're on a booking_view page
   const urlMatch = window.location.href.match(/\/bookings_view\/(\d+)/);
 
   if (urlMatch) {
     const bookingId = urlMatch[1];
+    console.log('[Hotel Extension] Matched booking ID:', bookingId);
 
     // Store the current booking ID for the extension popup
     try {
@@ -1350,8 +1366,10 @@ function updateCurrentBookingId() {
     }
 
     // Inject Restaurant row into the booking details table
+    console.log('[Hotel Extension] Calling injectRestaurantRowIntoFullBookingView...');
     injectRestaurantRowIntoFullBookingView(bookingId);
   } else {
+    console.log('[Hotel Extension] Not on a booking page');
     // Not on a booking page, clear the stored ID
     try {
       chrome.storage.local.remove('currentBookingId');
@@ -1371,6 +1389,7 @@ let lastUrl = window.location.href;
 setInterval(() => {
   const currentUrl = window.location.href;
   if (currentUrl !== lastUrl) {
+    console.log('[Hotel Extension] URL changed detected:', lastUrl, '->', currentUrl);
     lastUrl = currentUrl;
     updateCurrentBookingId();
   }
