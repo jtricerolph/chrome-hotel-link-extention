@@ -730,11 +730,6 @@ async function injectRowIntoTable(table, bookingId) {
     return;
   }
 
-  // Get settings for admin URL
-  const result = await chrome.storage.local.get(['settings']);
-  const settings = result.settings || {};
-  const adminBaseUrl = settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
-
   console.log('[Hotel Extension] Row - Checking data structure:', {
     success: data.success,
     hasBookings: !!(data.bookings && data.bookings.length > 0),
@@ -757,18 +752,19 @@ async function injectRowIntoTable(table, bookingId) {
       // Build button properties for this night (may be multiple buttons for multiple matches)
       if (hasPackage && matchCount === 0) {
         // Package without booking - RED (most critical)
+        // Use server-provided deep link URL
         nightButtons.push({
           color: '#ef4444',
           icon: 'add',
           text: dateShort,
           tooltip: 'URGENT: Package booking - Create restaurant reservation',
-          url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&auto-action=create`
+          url: night.deep_link
         });
       } else if (matchCount > 1) {
         // Multiple matches - show all of them
         night.resos_bookings.forEach((match, index) => {
           if (match.is_primary) {
-            // Primary match - BLUE with ResOS link
+            // Primary match - BLUE with ResOS link (direct to ResOS if available)
             nightButtons.push({
               color: '#60a5fa',
               icon: 'visibility',
@@ -776,23 +772,24 @@ async function injectRowIntoTable(table, bookingId) {
               tooltip: 'Primary match - View in ResOS',
               url: match.restaurant_id && match.resos_booking_id
                 ? `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`
-                : `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+                : match.deep_link
             });
           } else {
             // Suggested match - AMBER
+            // Use server-provided deep link URL
             nightButtons.push({
               color: '#f59e0b',
               icon: 'search',
               text: `${dateShort}`,
               tooltip: 'Suggested match - Review booking',
-              url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+              url: match.deep_link
             });
           }
         });
       } else if (matchCount === 1 && night.resos_bookings && night.resos_bookings[0]) {
         const match = night.resos_bookings[0];
         if (match.is_primary) {
-          // Single primary match - BLUE with ResOS link
+          // Single primary match - BLUE with ResOS link (direct to ResOS if available)
           nightButtons.push({
             color: '#60a5fa',
             icon: 'visibility',
@@ -800,26 +797,28 @@ async function injectRowIntoTable(table, bookingId) {
             tooltip: 'Primary match - View in ResOS',
             url: match.restaurant_id && match.resos_booking_id
               ? `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`
-              : `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+              : match.deep_link
           });
         } else {
           // Single suggested match - AMBER
+          // Use server-provided deep link URL
           nightButtons.push({
             color: '#f59e0b',
             icon: 'search',
             text: dateShort,
             tooltip: 'Suggested match - Review booking',
-            url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+            url: match.deep_link
           });
         }
       } else {
         // No matches - GREEN (create new)
+        // Use server-provided deep link URL
         nightButtons.push({
           color: '#10b981',
           icon: 'add',
           text: dateShort,
           tooltip: 'No match - Create new reservation',
-          url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&auto-action=create`
+          url: night.deep_link
         });
       }
 
@@ -1212,11 +1211,6 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
 
   console.log('[Hotel Extension] Nights check passed, building buttons...');
 
-  // Get admin base URL for links
-  const result = await chrome.storage.local.get(['settings']);
-  const settings = result.settings || {};
-  const adminBaseUrl = settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
-
   // Build buttons HTML for each night - may have multiple buttons per night
   const buttonsHtml = booking.nights.map(night => {
     const dateShort = formatDateShort(night.date);
@@ -1226,18 +1220,19 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
 
     if (hasPackage && matchCount === 0) {
       // Package without booking - RED (most critical)
+      // Use server-provided deep link URL
       nightButtons.push({
         color: '#ef4444',
         icon: 'add',
         text: dateShort,
         tooltip: 'URGENT: Package booking - Create restaurant reservation',
-        url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&auto-action=create`
+        url: night.deep_link
       });
     } else if (matchCount > 1) {
       // Multiple matches - show all of them
       night.resos_bookings.forEach((match, index) => {
         if (match.is_primary) {
-          // Primary match - BLUE with ResOS link
+          // Primary match - BLUE with ResOS link (direct to ResOS if available)
           nightButtons.push({
             color: '#60a5fa',
             icon: 'visibility',
@@ -1245,23 +1240,24 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
             tooltip: 'Primary match - View in ResOS',
             url: match.restaurant_id && match.resos_booking_id
               ? `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`
-              : `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+              : match.deep_link
           });
         } else {
           // Suggested match - AMBER
+          // Use server-provided deep link URL
           nightButtons.push({
             color: '#f59e0b',
             icon: 'search',
             text: `${dateShort}`,
             tooltip: 'Suggested match - Review booking',
-            url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+            url: match.deep_link
           });
         }
       });
     } else if (matchCount === 1 && night.resos_bookings && night.resos_bookings[0]) {
       const match = night.resos_bookings[0];
       if (match.is_primary) {
-        // Single primary match - BLUE with ResOS link
+        // Single primary match - BLUE with ResOS link (direct to ResOS if available)
         nightButtons.push({
           color: '#60a5fa',
           icon: 'visibility',
@@ -1269,26 +1265,28 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
           tooltip: 'Primary match - View in ResOS',
           url: match.restaurant_id && match.resos_booking_id
             ? `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`
-            : `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+            : match.deep_link
         });
       } else {
         // Single suggested match - AMBER
+        // Use server-provided deep link URL
         nightButtons.push({
           color: '#f59e0b',
           icon: 'search',
           text: dateShort,
           tooltip: 'Suggested match - Review booking',
-          url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+          url: match.deep_link
         });
       }
     } else {
       // No matches - GREEN (create new)
+      // Use server-provided deep link URL
       nightButtons.push({
         color: '#10b981',
         icon: 'add',
         text: dateShort,
         tooltip: 'No match - Create new reservation',
-        url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&auto-action=create`
+        url: night.deep_link
       });
     }
 
