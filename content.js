@@ -928,10 +928,18 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
 
   console.log('[Hotel Extension] Data validation passed, processing booking...');
   const booking = data.bookings[0];
+  console.log('[Hotel Extension] Booking object:', {
+    hasNights: !!booking.nights,
+    nightsLength: booking.nights?.length,
+    bookingKeys: Object.keys(booking)
+  });
 
   if (!booking.nights || booking.nights.length === 0) {
+    console.log('[Hotel Extension] No nights found in booking - STOPPING');
     return;
   }
+
+  console.log('[Hotel Extension] Nights check passed, building buttons...');
 
   // Get admin base URL for links
   const result = await chrome.storage.local.get(['settings']);
