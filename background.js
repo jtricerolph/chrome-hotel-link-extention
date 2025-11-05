@@ -38,8 +38,9 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
     };
 
     if (settings.settings?.wpUsername && settings.settings?.wpAppPassword) {
-      // Create Basic Auth header
-      const credentials = btoa(`${settings.settings.wpUsername}:${settings.settings.wpAppPassword}`);
+      // Create Basic Auth header (remove spaces from Application Password)
+      const password = settings.settings.wpAppPassword.replace(/\s+/g, '');
+      const credentials = btoa(`${settings.settings.wpUsername}:${password}`);
       headers['Authorization'] = `Basic ${credentials}`;
       console.log('[Background] Using Basic Authentication with username:', settings.settings.wpUsername);
     } else {

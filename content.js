@@ -550,8 +550,9 @@ async function fetchRestaurantBookingData(bookingId) {
     };
 
     if (settings.wpUsername && settings.wpAppPassword) {
-      // Create Basic Auth header
-      const credentials = btoa(`${settings.wpUsername}:${settings.wpAppPassword}`);
+      // Create Basic Auth header (remove spaces from Application Password)
+      const password = settings.wpAppPassword.replace(/\s+/g, '');
+      const credentials = btoa(`${settings.wpUsername}:${password}`);
       headers['Authorization'] = `Basic ${credentials}`;
       console.log('[Hotel Extension] Using Basic Authentication with username:', settings.wpUsername);
     } else {
@@ -622,8 +623,9 @@ async function fetchRestaurantBookingDataJSON(bookingId) {
     };
 
     if (settings.wpUsername && settings.wpAppPassword) {
-      // Create Basic Auth header
-      const credentials = btoa(`${settings.wpUsername}:${settings.wpAppPassword}`);
+      // Create Basic Auth header (remove spaces from Application Password)
+      const password = settings.wpAppPassword.replace(/\s+/g, '');
+      const credentials = btoa(`${settings.wpUsername}:${password}`);
       headers['Authorization'] = `Basic ${credentials}`;
       console.log('[Hotel Extension] Using Basic Authentication with username:', settings.wpUsername);
     } else {

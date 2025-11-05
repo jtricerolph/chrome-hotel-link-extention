@@ -119,8 +119,9 @@ async function fetchBookingData(apiEndpoint, bookingId, context = 'chrome-extens
   };
 
   if (settings.wpUsername && settings.wpAppPassword) {
-    // Create Basic Auth header
-    const credentials = btoa(`${settings.wpUsername}:${settings.wpAppPassword}`);
+    // Create Basic Auth header (remove spaces from Application Password)
+    const password = settings.wpAppPassword.replace(/\s+/g, '');
+    const credentials = btoa(`${settings.wpUsername}:${password}`);
     headers['Authorization'] = `Basic ${credentials}`;
     console.log('[Popup] Using Basic Authentication with username:', settings.wpUsername);
   } else {
