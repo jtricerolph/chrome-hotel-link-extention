@@ -1106,7 +1106,7 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   tbody.appendChild(newRow);
   console.log('[Hotel Extension] Restaurant row successfully inserted!');
 
-  // Verify insertion
+  // Verify insertion and check parent visibility
   setTimeout(() => {
     const checkRow = tbody.querySelector('tr[data-hotel-extension="restaurant"]');
     if (checkRow) {
@@ -1115,6 +1115,23 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
       console.log('[Hotel Extension] Row is visible:', checkRow.offsetHeight > 0);
       console.log('[Hotel Extension] Row parent:', checkRow.parentElement);
       console.log('[Hotel Extension] Total rows in tbody:', tbody.querySelectorAll('tr').length);
+
+      // Check all parent elements for display:none
+      let parent = checkRow.parentElement;
+      let depth = 0;
+      while (parent && depth < 10) {
+        const parentStyle = window.getComputedStyle(parent);
+        const parentRect = parent.getBoundingClientRect();
+        console.log(`[Hotel Extension] Parent ${depth} (${parent.tagName}):`, {
+          display: parentStyle.display,
+          visibility: parentStyle.visibility,
+          width: parentRect.width,
+          height: parentRect.height,
+          className: parent.className
+        });
+        parent = parent.parentElement;
+        depth++;
+      }
 
       // Check computed styles
       const computedStyle = window.getComputedStyle(checkRow);
