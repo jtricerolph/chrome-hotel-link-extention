@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS = {
 document.addEventListener('DOMContentLoaded', async () => {
   await loadSettings();
   setupEventListeners();
+  await checkPermissions();
 });
 
 // Load settings from storage
@@ -158,4 +159,59 @@ function setupEventListeners() {
       }
     });
   });
+
+  // Grant permissions button
+  document.getElementById('grantPermissionsBtn').addEventListener('click', grantPermissions);
+}
+
+// Check if API permissions are granted
+async function checkPermissions() {
+  const statusDiv = document.getElementById('permissionStatus');
+  const button = document.getElementById('grantPermissionsBtn');
+
+  try {
+    const hasPermissions = await new Promise((resolve) => {
+      chrome.permissions.contains(
+        { origins: ['https://admin.hotelnumberfour.com/*', 'https://n4admindev.pterois.co.uk/*'] },
+        (result) => resolve(result)
+      );
+    });
+
+    if (hasPermissions) {
+      statusDiv.style.background = '#d4edda';
+      statusDiv.style.color = '#155724';
+      statusDiv.textContent = '✓ API permissions granted';
+      button.style.display = 'none';
+    } else {
+      statusDiv.style.background = '#fff3cd';
+      statusDiv.style.color = '#856404';
+      statusDiv.textContent = '⚠ API permissions required - Click button below to grant';
+      button.style.display = 'inline-block';
+    }
+  } catch (error) {
+    statusDiv.style.background = '#f8d7da';
+    statusDiv.style.color = '#721c24';
+    statusDiv.textContent = '✗ Error checking permissions: ' + error.message;
+  }
+}
+
+// Request API permissions (must be called from user gesture)
+async function grantPermissions() {
+  try {
+    const granted = await new Promise((resolve) => {
+      chrome.permissions.request(
+        { origins: ['https://admin.hotelnumberfour.com/*', 'https://n4admindev.pterois.co.uk/*'] },
+        (result) => resolve(result)
+      );
+    });
+
+    if (granted) {
+      showStatus('Permissions granted successfully!', 'success');
+      await checkPermissions();
+    } else {
+      showStatus('Permissions denied. Extension will not work properly.', 'error');
+    }
+  } catch (error) {
+    showStatus('Error requesting permissions: ' + error.message, 'error');
+  }
 }
