@@ -4,7 +4,7 @@
 console.log('===============================================');
 console.log('🏨 Hotel Number Four Extension LOADED');
 console.log('===============================================');
-console.log('[Hotel Extension] Version: 1.0');
+console.log('[Hotel Extension] Version: 1.2.0');
 console.log('[Hotel Extension] URL:', window.location.href);
 console.log('===============================================');
 
@@ -777,6 +777,157 @@ if (document.readyState === 'loading') {
 }
 
 // ============================================================================
+// FULL BOOKING VIEW PAGE - INJECT RESTAURANT ROW INTO TABLE
+// ============================================================================
+
+async function injectRestaurantRowIntoFullBookingView(bookingId) {
+  console.log('[Hotel Extension] ===== FULL VIEW TABLE INJECTION START =====');
+  console.log('[Hotel Extension] Booking ID:', bookingId);
+
+  // Check if we've already processed this booking's table
+  const alreadyProcessed = document.body.dataset.hotelExtensionTableProcessed === bookingId;
+
+  if (alreadyProcessed) {
+    console.log('[Hotel Extension] Table already processed for this booking, skipping');
+    return;
+  }
+
+  // Try to find the booking details table
+  console.log('[Hotel Extension] Looking for booking details table...');
+  let table = document.querySelector('.pretty_table.fieldset_table');
+
+  if (!table) {
+    console.log('[Hotel Extension] Table not found yet, setting up observer...');
+
+    // Set up observer to wait for table to load
+    const tableObserver = new MutationObserver((mutations) => {
+      const foundTable = document.querySelector('.pretty_table.fieldset_table');
+      if (foundTable) {
+        console.log('[Hotel Extension] Table found via observer');
+        tableObserver.disconnect();
+        injectRowIntoFullBookingTable(foundTable, bookingId);
+      }
+    });
+
+    tableObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    // Timeout after 3 seconds
+    setTimeout(() => {
+      const foundTable = document.querySelector('.pretty_table.fieldset_table');
+      if (foundTable) {
+        console.log('[Hotel Extension] Table found via timeout check');
+        tableObserver.disconnect();
+        injectRowIntoFullBookingTable(foundTable, bookingId);
+      } else {
+        console.log('[Hotel Extension] Timeout: No booking details table found');
+        tableObserver.disconnect();
+      }
+    }, 3000);
+
+    return;
+  }
+
+  console.log('[Hotel Extension] Table found immediately, injecting restaurant row...');
+  await injectRowIntoFullBookingTable(table, bookingId);
+}
+
+// Helper function to inject row into full booking view table (5-column format)
+async function injectRowIntoFullBookingTable(table, bookingId) {
+  console.log('[Hotel Extension] Injecting row into full booking table for ID:', bookingId);
+
+  // Mark as processed for this booking ID
+  document.body.dataset.hotelExtensionTableProcessed = bookingId;
+
+  // Find tbody
+  const tbody = table.querySelector('tbody');
+  if (!tbody) {
+    console.log('[Hotel Extension] No tbody found in table');
+    return;
+  }
+
+  // Check if row already exists
+  const existingRow = tbody.querySelector('tr[data-hotel-extension="restaurant"]');
+  if (existingRow) {
+    console.log('[Hotel Extension] Restaurant row already exists, skipping');
+    return;
+  }
+
+  // Fetch booking data from API
+  const booking = await fetchBookingDetails(bookingId);
+
+  if (!booking || !booking.nights) {
+    console.log('[Hotel Extension] No booking data or nights found');
+    return;
+  }
+
+  // Build buttons HTML for each night
+  const buttonsHtml = booking.nights.map(night => {
+    const dateShort = formatDateShort(night.night_date);
+    const matchCount = night.match_count || 0;
+    const hasPackage = night.has_package || false;
+
+    // Determine button color and behavior based on match status
+    let buttonClass = 'btn-green'; // Default: no match
+    let buttonColor = '#10b981';
+    let buttonText = dateShort;
+    let linkUrl = null;
+
+    if (hasPackage && matchCount === 0) {
+      // Package without booking - RED (most critical)
+      buttonClass = 'btn-red';
+      buttonColor = '#ef4444';
+    } else if (matchCount > 1 || (matchCount === 1 && night.resos_bookings && !night.resos_bookings[0].is_primary)) {
+      // Multiple matches or non-primary match - AMBER
+      buttonClass = 'btn-amber';
+      buttonColor = '#f59e0b';
+    } else if (matchCount === 1 && night.resos_bookings && night.resos_bookings[0].is_primary) {
+      // Primary match - BLUE with link
+      buttonClass = 'btn-blue';
+      buttonColor = '#60a5fa';
+      const resosId = night.resos_bookings[0].id;
+      linkUrl = `https://admin.hotelnumberfour.com/reservations/${resosId}`;
+    }
+
+    const buttonHtml = linkUrl
+      ? `<a href="${linkUrl}" target="_blank" style="display: inline-block; padding: 6px 12px; margin: 2px; background-color: ${buttonColor}; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer;">${buttonText}</a>`
+      : `<button style="display: inline-block; padding: 6px 12px; margin: 2px; background-color: ${buttonColor}; color: white; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer;">${buttonText}</button>`;
+
+    return buttonHtml;
+  }).join('');
+
+  if (!buttonsHtml) {
+    console.log('[Hotel Extension] No buttons to show');
+    return;
+  }
+
+  // Create the new row with 5-column format matching the table structure
+  const newRow = document.createElement('tr');
+  const rowCount = tbody.querySelectorAll('tr').length;
+  newRow.className = rowCount % 2 === 0 ? 'odd' : 'even';
+  newRow.setAttribute('data-hotel-extension', 'restaurant');
+
+  // Use 5-column format: labeler (15%) | view_value (34.5%) | spacer | labeler (15%) | view_value (34.5%)
+  newRow.innerHTML = `
+    <td class="labeler" style="width: 15%;">
+      <label class="fieldset_label">Restaurant</label>
+    </td>
+    <td class="view_value" style="width: 34.5%;">
+      ${buttonsHtml}
+    </td>
+    <td class="spacer">&nbsp;</td>
+    <td class="labeler" style="width: 15%;"></td>
+    <td class="view_value" style="width: 34.5%;"></td>
+  `;
+
+  // Insert the row at the end of the table
+  tbody.appendChild(newRow);
+  console.log('[Hotel Extension] Restaurant row with', booking.nights?.length || 0, 'night buttons injected into full view table');
+}
+
+// ============================================================================
 // FULL BOOKING VIEW PAGE - INJECT BUTTONS INTO CONTEXT MENUS
 // ============================================================================
 
@@ -1095,6 +1246,9 @@ function updateCurrentBookingId() {
     } catch (error) {
       console.log('[Hotel Extension] Failed to store booking ID (extension may have been reloaded):', error.message);
     }
+
+    // Inject Restaurant row into the booking details table
+    injectRestaurantRowIntoFullBookingView(bookingId);
 
     // Also inject Restaurant buttons into context menus on the full booking view page
     injectRestaurantButtonsIntoContextMenus(bookingId);
