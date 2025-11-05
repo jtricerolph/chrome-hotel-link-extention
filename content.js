@@ -496,6 +496,14 @@ async function fetchRestaurantBookingData(bookingId) {
     const settings = result.settings || {};
     const apiEndpoint = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
 
+    console.log('[Hotel Extension] === API REQUEST DEBUG ===');
+    console.log('[Hotel Extension] API Endpoint:', apiEndpoint);
+    console.log('[Hotel Extension] Booking ID:', bookingId);
+    console.log('[Hotel Extension] Request body:', JSON.stringify({
+      booking_id: parseInt(bookingId),
+      context: 'chrome-extension'
+    }));
+
     const response = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
@@ -507,15 +515,30 @@ async function fetchRestaurantBookingData(bookingId) {
       })
     });
 
+    console.log('[Hotel Extension] Response status:', response.status);
+    console.log('[Hotel Extension] Response headers:', Array.from(response.headers.entries()));
+
     if (!response.ok) {
-      console.warn('API returned error:', response.status);
+      console.warn('[Hotel Extension] API returned error:', response.status);
+      const errorText = await response.text();
+      console.warn('[Hotel Extension] Error response body:', errorText);
       return null;
     }
 
-    const data = await response.json();
+    // Get raw response text first
+    const responseText = await response.text();
+    console.log('[Hotel Extension] RAW API Response (first 500 chars):', responseText.substring(0, 500));
+    console.log('[Hotel Extension] RAW API Response length:', responseText.length);
+
+    // Parse JSON
+    const data = JSON.parse(responseText);
+    console.log('[Hotel Extension] Parsed API Response:', data);
+    console.log('[Hotel Extension] === END API REQUEST DEBUG ===');
+
     return data;
   } catch (error) {
-    console.error('Error fetching from API:', error);
+    console.error('[Hotel Extension] Error fetching from API:', error);
+    console.error('[Hotel Extension] Error stack:', error.stack);
     return null;
   }
 }
