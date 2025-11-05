@@ -536,6 +536,8 @@ async function fetchRestaurantBookingDataJSON(bookingId) {
     const settings = result.settings || {};
     const apiEndpoint = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
 
+    console.log('[Hotel Extension] Calling API with:', { booking_id: parseInt(bookingId), context: 'json' });
+
     const response = await fetch(apiEndpoint, {
       method: 'POST',
       headers: {
@@ -547,11 +549,15 @@ async function fetchRestaurantBookingDataJSON(bookingId) {
       })
     });
 
+    console.log('[Hotel Extension] API response status:', response.status, response.statusText);
+
     if (!response.ok) {
+      console.log('[Hotel Extension] API response not ok, returning null');
       return null;
     }
 
     const data = await response.json();
+    console.log('[Hotel Extension] Parsed API response:', data);
     return data;
   } catch (error) {
     console.error('[Hotel Extension] Error fetching JSON from API:', error);
@@ -886,6 +892,8 @@ async function injectRestaurantRowIntoFullBookingView(bookingId) {
 async function injectRowIntoFullBookingTable(table, bookingId) {
   console.log('[Hotel Extension] injectRowIntoFullBookingTable called for booking:', bookingId);
 
+  try {
+
   // Ensure Material Symbols font is loaded
   if (!document.querySelector('link[href*="Material+Symbols+Outlined"]')) {
     const fontLink = document.createElement('link');
@@ -927,12 +935,42 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   }
 
   console.log('[Hotel Extension] Data validation passed, processing booking...');
-  const booking = data.bookings[0];
-  console.log('[Hotel Extension] Booking object:', {
-    hasNights: !!booking.nights,
-    nightsLength: booking.nights?.length,
-    bookingKeys: Object.keys(booking)
-  });
+
+  try {
+    console.log('[Hotel Extension] Full data object:', JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.log('[Hotel Extension] Error stringifying data:', e.message);
+    console.log('[Hotel Extension] Data object (direct):', data);
+  }
+
+  try {
+    console.log('[Hotel Extension] Bookings array:', data.bookings);
+  } catch (e) {
+    console.log('[Hotel Extension] Error accessing bookings array:', e.message);
+  }
+
+  try {
+    console.log('[Hotel Extension] First booking:', data.bookings[0]);
+  } catch (e) {
+    console.log('[Hotel Extension] Error accessing first booking:', e.message);
+  }
+
+  let booking;
+  try {
+    booking = data.bookings[0];
+    console.log('[Hotel Extension] Successfully accessed booking:', booking);
+
+    if (booking) {
+      console.log('[Hotel Extension] Booking object structure:', {
+        hasNights: !!booking.nights,
+        nightsLength: booking.nights?.length,
+        bookingKeys: Object.keys(booking)
+      });
+    }
+  } catch (e) {
+    console.log('[Hotel Extension] Error accessing booking:', e.message, e.stack);
+    return;
+  }
 
   if (!booking.nights || booking.nights.length === 0) {
     console.log('[Hotel Extension] No nights found in booking - STOPPING');
@@ -1060,6 +1098,13 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
 
   // Insert the row at the end of the table
   tbody.appendChild(newRow);
+  console.log('[Hotel Extension] Restaurant row successfully inserted!');
+
+  } catch (error) {
+    console.error('[Hotel Extension] Fatal error in injectRowIntoFullBookingTable:', error.message);
+    console.error('[Hotel Extension] Stack trace:', error.stack);
+    console.error('[Hotel Extension] Full error:', error);
+  }
 }
 
 // ============================================================================
