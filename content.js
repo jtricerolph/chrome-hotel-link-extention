@@ -868,16 +868,23 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   }
 
   // Fetch booking data from API
-  const booking = await fetchBookingDetails(bookingId);
+  const data = await fetchRestaurantBookingData(bookingId);
 
-  if (!booking || !booking.nights) {
+  if (!data || !data.success || !data.bookings || data.bookings.length === 0) {
     console.log('[Hotel Extension] No booking data or nights found');
+    return;
+  }
+
+  const booking = data.bookings[0];
+
+  if (!booking.nights || booking.nights.length === 0) {
+    console.log('[Hotel Extension] No nights found in booking');
     return;
   }
 
   // Build buttons HTML for each night
   const buttonsHtml = booking.nights.map(night => {
-    const dateShort = formatDateShort(night.night_date);
+    const dateShort = formatDateShort(night.date);
     const matchCount = night.match_count || 0;
     const hasPackage = night.has_package || false;
 
@@ -899,8 +906,11 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
       // Primary match - BLUE with link
       buttonClass = 'btn-blue';
       buttonColor = '#60a5fa';
-      const resosId = night.resos_bookings[0].id;
-      linkUrl = `https://admin.hotelnumberfour.com/reservations/${resosId}`;
+      const match = night.resos_bookings[0];
+      // Use ResOS deep link for primary matches
+      if (match.restaurant_id && match.resos_booking_id) {
+        linkUrl = `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`;
+      }
     }
 
     const buttonHtml = linkUrl
