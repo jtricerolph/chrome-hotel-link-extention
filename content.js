@@ -1365,27 +1365,16 @@ function updateCurrentBookingId() {
 updateCurrentBookingId();
 
 // Watch for URL changes (for single-page app navigation)
+// Use setInterval polling instead of MutationObserver because NewBook uses
+// history.pushState which doesn't trigger DOM mutations
 let lastUrl = window.location.href;
-if (document.body) {
-  new MutationObserver(() => {
-    const currentUrl = window.location.href;
-    if (currentUrl !== lastUrl) {
-      lastUrl = currentUrl;
-      updateCurrentBookingId();
-    }
-  }).observe(document.body, { childList: true, subtree: true });
-} else {
-  // Wait for document.body to be available
-  document.addEventListener('DOMContentLoaded', () => {
-    new MutationObserver(() => {
-      const currentUrl = window.location.href;
-      if (currentUrl !== lastUrl) {
-        lastUrl = currentUrl;
-        updateCurrentBookingId();
-      }
-    }).observe(document.body, { childList: true, subtree: true });
-  });
-}
+setInterval(() => {
+  const currentUrl = window.location.href;
+  if (currentUrl !== lastUrl) {
+    lastUrl = currentUrl;
+    updateCurrentBookingId();
+  }
+}, 500); // Check every 500ms
 
 // Log for debugging
 console.log('Hotel Number Four - Booking Assistant extension loaded');
