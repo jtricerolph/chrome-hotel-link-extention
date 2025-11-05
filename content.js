@@ -252,30 +252,44 @@ async function handleBookingDialog(dialogElement) {
   if (chrome.runtime?.id) {
     try {
       chrome.storage.local.set({ currentBookingId: bookingId });
-      console.log('[Hotel Extension] Stored currentBookingId from popup:', bookingId);
+      console.log('[Hotel Extension] Stored currentBookingId from dialog:', bookingId);
     } catch (error) {
-      console.log('[Hotel Extension] Failed to store booking ID from popup:', error.message);
-    }
-  }
-
-  // Trigger the extension popup for alerts/warnings
-  console.log('[Hotel Extension] Sending message to background to check booking and trigger popup if needed...');
-
-  // Send message to background script to check this booking and open the extension popup
-  if (chrome.runtime?.id) {
-    try {
-      chrome.runtime.sendMessage({
-        action: 'checkBookingFromDialog',
-        bookingId: bookingId
-      });
-      console.log('[Hotel Extension] Message sent to background script');
-    } catch (error) {
-      console.error('[Hotel Extension] Failed to send message to background:', error);
+      console.log('[Hotel Extension] Failed to store booking ID from dialog:', error.message);
     }
   }
 
   // Inject a Restaurant row into the dialog's table for quick access
   await injectRestaurantRowIntoDialog(dialogElement, bookingId);
+
+  // Trigger the extension popup for alerts/warnings after 1500ms delay
+  setTimeout(() => {
+    // Check if dialog is still visible before triggering popup
+    if (!document.body.contains(dialogElement)) {
+      console.log('[Hotel Extension] Dialog removed before popup trigger, skipping popup');
+      return;
+    }
+
+    const isVisible = dialogElement.style.display !== 'none' &&
+                     dialogElement.offsetParent !== null;
+
+    if (!isVisible) {
+      console.log('[Hotel Extension] Dialog no longer visible, skipping popup');
+      return;
+    }
+
+    console.log('[Hotel Extension] Dialog remained visible for 1.5s, triggering popup check...');
+    if (chrome.runtime?.id) {
+      try {
+        chrome.runtime.sendMessage({
+          action: 'checkBookingFromDialog',
+          bookingId: bookingId
+        });
+        console.log('[Hotel Extension] Message sent to background script');
+      } catch (error) {
+        console.error('[Hotel Extension] Failed to send message to background:', error);
+      }
+    }
+  }, 1500);
 }
 
 async function handleEasyToolTipBooking(tooltipElement) {
@@ -365,7 +379,7 @@ async function handleEasyToolTipBooking(tooltipElement) {
         return;
       }
 
-      console.log('[Hotel Extension] Tooltip remained visible for 2s, triggering popup check...');
+      console.log('[Hotel Extension] Tooltip remained visible for 1.5s, triggering popup check...');
       if (chrome.runtime?.id) {
         try {
           chrome.runtime.sendMessage({
@@ -377,7 +391,7 @@ async function handleEasyToolTipBooking(tooltipElement) {
           console.error('[Hotel Extension] Failed to send message to background:', error);
         }
       }
-    }, 1000); // Additional 1000ms delay (2000ms total from initial hover)
+    }, 500); // Additional 500ms delay (1500ms total from initial hover)
   }, 1000); // 1000ms delay for API call
 }
 
@@ -671,6 +685,13 @@ async function injectRowIntoTable(table, bookingId) {
     return;
   }
 
+  // Check if restaurant row already exists to prevent duplicates
+  const existingRow = tbody.querySelector('tr[data-hotel-extension="restaurant"]');
+  if (existingRow) {
+    console.log('[Hotel Extension] Restaurant row already exists, skipping injection');
+    return;
+  }
+
   // Fetch restaurant booking data from API - use JSON format for structured data
   const data = await fetchRestaurantBookingDataJSON(bookingId);
 
@@ -705,12 +726,13 @@ async function injectRowIntoTable(table, bookingId) {
       const hasPackage = night.has_package || false;
       const hasMatches = matchCount > 0 && night.resos_bookings && night.resos_bookings.length > 0;
 
-      let buttonColor, buttonText, buttonTitle, buttonUrl;
+      let buttonColor, buttonText, buttonTitle, buttonUrl, buttonIcon;
 
       // Determine button properties based on match status
       if (hasPackage && !hasMatches) {
         // Red: Package night without booking (CRITICAL)
         buttonColor = '#ef4444';
+        buttonIcon = 'add';
         buttonText = formatDateShort(nightDate);
         buttonTitle = 'Package - No Booking';
         buttonUrl = `${adminBaseUrl}/booking/${bookingId}?date=${nightDate}`;
@@ -721,6 +743,7 @@ async function injectRowIntoTable(table, bookingId) {
         if (isPrimary) {
           // Blue: Primary match
           buttonColor = '#60a5fa';
+          buttonIcon = 'visibility';
           buttonText = formatDateShort(nightDate);
           buttonTitle = 'Primary Match';
           // Link to ResOS for primary matches
@@ -732,6 +755,7 @@ async function injectRowIntoTable(table, bookingId) {
         } else {
           // Amber: Suggested match
           buttonColor = '#f59e0b';
+          buttonIcon = 'search';
           buttonText = formatDateShort(nightDate);
           buttonTitle = 'Suggested Match';
           buttonUrl = `${adminBaseUrl}/booking/${bookingId}?date=${nightDate}`;
@@ -739,6 +763,7 @@ async function injectRowIntoTable(table, bookingId) {
       } else {
         // Dark green: No match (create new)
         buttonColor = '#10b981';
+        buttonIcon = 'add';
         buttonText = formatDateShort(nightDate);
         buttonTitle = 'Create Booking';
         buttonUrl = `${adminBaseUrl}/booking/${bookingId}?date=${nightDate}`;
@@ -746,14 +771,17 @@ async function injectRowIntoTable(table, bookingId) {
 
       console.log('[Hotel Extension] Row - Night', nightDate, '- Color:', buttonColor, '- Title:', buttonTitle);
 
-      // Create button HTML
+      // Create button HTML with Material Icons
       buttonsHtml += `
         <a href="${buttonUrl}"
            class="hotel-extension-night-button"
            target="_blank"
            title="${buttonTitle}"
-           style="display: inline-block; padding: 4px 8px; background: ${buttonColor}; color: white; text-decoration: none; border-radius: 3px; font-size: 11px; margin: 2px; font-weight: 500; white-space: nowrap;">
-          ${buttonText}
+           style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; margin: 2px; background-color: ${buttonColor}; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: opacity 0.2s; white-space: nowrap;"
+           onmouseover="this.style.opacity='0.8'"
+           onmouseout="this.style.opacity='1'">
+          <span class="material-symbols-outlined" style="font-size: 16px;">${buttonIcon}</span>
+          <span>${buttonText}</span>
         </a>
       `;
     }
@@ -768,6 +796,8 @@ async function injectRowIntoTable(table, bookingId) {
   const newRow = document.createElement('tr');
   const rowCount = tbody.querySelectorAll('tr').length;
   newRow.className = rowCount % 2 === 0 ? 'odd' : 'even';
+  newRow.setAttribute('data-hotel-extension', 'restaurant');
+  newRow.setAttribute('data-booking-id', bookingId);
 
   newRow.innerHTML = `
     <td class="labeler" style="width: 35%;">
@@ -780,7 +810,7 @@ async function injectRowIntoTable(table, bookingId) {
 
   // Insert the row at the end of the table
   tbody.appendChild(newRow);
-  console.log('[Hotel Extension] Restaurant row with', booking.nights?.length || 0, 'night buttons injected');
+  console.log('[Hotel Extension] Restaurant row with night buttons injected');
 }
 
 // Helper function to format date as short string (e.g., "Mon 30")
@@ -838,10 +868,16 @@ async function injectRestaurantRowIntoDialog(dialogElement, bookingId) {
     // Timeout fallback
     setTimeout(() => {
       table = dialogContent.querySelector('table');
-      if (table && !table.querySelector('.hotel-extension-night-button')) {
-        console.log('[Hotel Extension] Table found in dialog via timeout');
-        tableObserver.disconnect();
-        injectRowIntoTable(table, bookingId);
+      if (table) {
+        const tbody = table.querySelector('tbody');
+        const existingRow = tbody?.querySelector('tr[data-hotel-extension="restaurant"]');
+        if (!existingRow) {
+          console.log('[Hotel Extension] Table found in dialog via timeout');
+          tableObserver.disconnect();
+          injectRowIntoTable(table, bookingId);
+        } else {
+          console.log('[Hotel Extension] Timeout: Restaurant row already exists');
+        }
       } else {
         console.log('[Hotel Extension] Timeout: No table found in dialog');
       }
@@ -1659,6 +1695,29 @@ function updateCurrentBookingId() {
     // Inject Restaurant row into the booking details table
     console.log('[Hotel Extension] Calling injectRestaurantRowIntoFullBookingView...');
     injectRestaurantRowIntoFullBookingView(bookingId);
+
+    // Trigger the extension popup for alerts/warnings after 1500ms delay
+    setTimeout(() => {
+      // Verify we're still on the same booking page
+      const currentUrlMatch = window.location.href.match(/\/bookings_view\/(\d+)/);
+      if (!currentUrlMatch || currentUrlMatch[1] !== bookingId) {
+        console.log('[Hotel Extension] Booking page changed, skipping popup');
+        return;
+      }
+
+      console.log('[Hotel Extension] Still on booking page after 1.5s, triggering popup check...');
+      if (chrome.runtime?.id) {
+        try {
+          chrome.runtime.sendMessage({
+            action: 'checkBookingFromDialog',
+            bookingId: bookingId
+          });
+          console.log('[Hotel Extension] Message sent to background script');
+        } catch (error) {
+          console.error('[Hotel Extension] Failed to send message to background:', error);
+        }
+      }
+    }, 1500);
   } else {
     console.log('[Hotel Extension] Not on a booking page');
     // Not on a booking page, clear the stored ID
