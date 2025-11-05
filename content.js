@@ -623,8 +623,8 @@ async function injectRowIntoTable(table, bookingId) {
     return;
   }
 
-  // Fetch restaurant booking data from API
-  const data = await fetchRestaurantBookingData(bookingId);
+  // Fetch restaurant booking data from API - use JSON format for structured data
+  const data = await fetchRestaurantBookingDataJSON(bookingId);
 
   console.log('[Hotel Extension] Row injection - API data received:', !!data);
 
