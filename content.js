@@ -784,6 +784,18 @@ async function injectRestaurantRowIntoFullBookingView(bookingId) {
   console.log('[Hotel Extension] ===== FULL VIEW TABLE INJECTION START =====');
   console.log('[Hotel Extension] Booking ID:', bookingId);
 
+  // Check if document.body exists
+  if (!document.body) {
+    console.log('[Hotel Extension] document.body not available yet, waiting for DOMContentLoaded...');
+    // Wait for DOMContentLoaded and try again
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        injectRestaurantRowIntoFullBookingView(bookingId);
+      });
+    }
+    return;
+  }
+
   // Check if we've already processed this booking's table
   const alreadyProcessed = document.body.dataset.hotelExtensionTableProcessed === bookingId;
 
@@ -934,6 +946,13 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
 async function injectRestaurantButtonsIntoContextMenus(bookingId) {
   console.log('[Hotel Extension] ===== CONTEXT MENU INJECTION START =====');
   console.log('[Hotel Extension] Booking ID:', bookingId);
+
+  // Check if document.body exists
+  if (!document.body) {
+    console.log('[Hotel Extension] document.body not available yet, skipping context menu injection');
+    return;
+  }
+
   console.log('[Hotel Extension] Current processed ID:', document.body.dataset.hotelExtensionContextMenusProcessed);
 
   // Check if we've already processed context menus for this exact booking
@@ -1252,9 +1271,6 @@ function updateCurrentBookingId() {
 
     // Inject Restaurant row into the booking details table
     injectRestaurantRowIntoFullBookingView(bookingId);
-
-    // Also inject Restaurant buttons into context menus on the full booking view page
-    injectRestaurantButtonsIntoContextMenus(bookingId);
   } else {
     // Not on a booking page, clear the stored ID
     console.log('[Hotel Extension] Not on a booking page');
