@@ -261,7 +261,7 @@ async function handleBookingDialog(dialogElement) {
   // Inject a Restaurant row into the dialog's table for quick access
   await injectRestaurantRowIntoDialog(dialogElement, bookingId);
 
-  // Trigger the extension popup for alerts/warnings after 1500ms delay
+  // Trigger the extension popup for alerts/warnings after 2500ms delay
   setTimeout(() => {
     // Check if dialog is still visible before triggering popup
     if (!document.body.contains(dialogElement)) {
@@ -277,7 +277,7 @@ async function handleBookingDialog(dialogElement) {
       return;
     }
 
-    console.log('[Hotel Extension] Dialog remained visible for 1.5s, triggering popup check...');
+    console.log('[Hotel Extension] Dialog remained visible for 2.5s, triggering popup check...');
     if (chrome.runtime?.id) {
       try {
         chrome.runtime.sendMessage({
@@ -289,7 +289,7 @@ async function handleBookingDialog(dialogElement) {
         console.error('[Hotel Extension] Failed to send message to background:', error);
       }
     }
-  }, 1500);
+  }, 2500);
 }
 
 async function handleEasyToolTipBooking(tooltipElement) {
@@ -362,7 +362,7 @@ async function handleEasyToolTipBooking(tooltipElement) {
     // Inject a Restaurant row into the table for quick access (at 1000ms)
     await injectRestaurantRowIntoTooltip(tooltipElement, bookingId);
 
-    // Trigger the extension popup for alerts/warnings with additional delay (2000ms total)
+    // Trigger the extension popup for alerts/warnings with additional delay (2500ms total)
     // This prevents popup spam when quickly scanning bookings
     setTimeout(() => {
       // Check again if tooltip is still visible before triggering popup
@@ -379,7 +379,7 @@ async function handleEasyToolTipBooking(tooltipElement) {
         return;
       }
 
-      console.log('[Hotel Extension] Tooltip remained visible for 1.5s, triggering popup check...');
+      console.log('[Hotel Extension] Tooltip remained visible for 2.5s, triggering popup check...');
       if (chrome.runtime?.id) {
         try {
           chrome.runtime.sendMessage({
@@ -391,7 +391,7 @@ async function handleEasyToolTipBooking(tooltipElement) {
           console.error('[Hotel Extension] Failed to send message to background:', error);
         }
       }
-    }, 500); // Additional 500ms delay (1500ms total from initial hover)
+    }, 1500); // Additional 1500ms delay (2500ms total from initial hover)
   }, 1000); // 1000ms delay for API call
 }
 
@@ -646,11 +646,15 @@ async function injectRestaurantRowIntoTooltip(tooltipElement, bookingId) {
   if (!table) {
     console.log('[Hotel Extension] No table found in tooltip immediately. Tooltip has', tooltipElement.children.length, 'children. Waiting for content...');
 
+    // Use a flag to prevent both observer and timeout from injecting
+    let injectionStarted = false;
+
     // Table hasn't loaded yet - watch for it
     const tableObserver = new MutationObserver((mutations) => {
       table = tooltipElement.querySelector('table');
-      if (table) {
+      if (table && !injectionStarted) {
         console.log('[Hotel Extension] Table found via MutationObserver, injecting restaurant row...');
+        injectionStarted = true;
         tableObserver.disconnect();
         injectRowIntoTable(table, bookingId);
       }
@@ -663,11 +667,23 @@ async function injectRestaurantRowIntoTooltip(tooltipElement, bookingId) {
 
     // Also try again after a short delay
     setTimeout(() => {
+      if (injectionStarted) {
+        console.log('[Hotel Extension] Timeout: Injection already started by observer, skipping');
+        return;
+      }
+
       table = tooltipElement.querySelector('table');
-      if (table && !table.querySelector('.hotel-extension-restaurant-button')) {
-        console.log('[Hotel Extension] Table found via timeout, injecting restaurant row...');
-        tableObserver.disconnect();
-        injectRowIntoTable(table, bookingId);
+      if (table) {
+        const tbody = table.querySelector('tbody');
+        const existingRow = tbody?.querySelector('tr[data-hotel-extension="restaurant"]');
+        if (!existingRow) {
+          console.log('[Hotel Extension] Table found via timeout, injecting restaurant row...');
+          injectionStarted = true;
+          tableObserver.disconnect();
+          injectRowIntoTable(table, bookingId);
+        } else {
+          console.log('[Hotel Extension] Timeout: Restaurant row already exists');
+        }
       }
     }, 500);
 
@@ -850,11 +866,15 @@ async function injectRestaurantRowIntoDialog(dialogElement, bookingId) {
   if (!table) {
     console.log('[Hotel Extension] No table found in dialog immediately, waiting...');
 
+    // Use a flag to prevent both observer and timeout from injecting
+    let injectionStarted = false;
+
     // Watch for table to appear
     const tableObserver = new MutationObserver((mutations) => {
       table = dialogContent.querySelector('table');
-      if (table) {
+      if (table && !injectionStarted) {
         console.log('[Hotel Extension] Table found in dialog via observer');
+        injectionStarted = true;
         tableObserver.disconnect();
         injectRowIntoTable(table, bookingId);
       }
@@ -867,12 +887,18 @@ async function injectRestaurantRowIntoDialog(dialogElement, bookingId) {
 
     // Timeout fallback
     setTimeout(() => {
+      if (injectionStarted) {
+        console.log('[Hotel Extension] Timeout: Injection already started by observer, skipping');
+        return;
+      }
+
       table = dialogContent.querySelector('table');
       if (table) {
         const tbody = table.querySelector('tbody');
         const existingRow = tbody?.querySelector('tr[data-hotel-extension="restaurant"]');
         if (!existingRow) {
           console.log('[Hotel Extension] Table found in dialog via timeout');
+          injectionStarted = true;
           tableObserver.disconnect();
           injectRowIntoTable(table, bookingId);
         } else {
@@ -1696,7 +1722,7 @@ function updateCurrentBookingId() {
     console.log('[Hotel Extension] Calling injectRestaurantRowIntoFullBookingView...');
     injectRestaurantRowIntoFullBookingView(bookingId);
 
-    // Trigger the extension popup for alerts/warnings after 1500ms delay
+    // Trigger the extension popup for alerts/warnings after 2500ms delay
     setTimeout(() => {
       // Verify we're still on the same booking page
       const currentUrlMatch = window.location.href.match(/\/bookings_view\/(\d+)/);
@@ -1705,7 +1731,7 @@ function updateCurrentBookingId() {
         return;
       }
 
-      console.log('[Hotel Extension] Still on booking page after 1.5s, triggering popup check...');
+      console.log('[Hotel Extension] Still on booking page after 2.5s, triggering popup check...');
       if (chrome.runtime?.id) {
         try {
           chrome.runtime.sendMessage({
@@ -1717,7 +1743,7 @@ function updateCurrentBookingId() {
           console.error('[Hotel Extension] Failed to send message to background:', error);
         }
       }
-    }, 1500);
+    }, 2500);
   } else {
     console.log('[Hotel Extension] Not on a booking page');
     // Not on a booking page, clear the stored ID
