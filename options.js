@@ -62,11 +62,15 @@ async function saveSettings() {
       return;
     }
 
+    // Strip spaces from Application Password before storing
+    // WordPress generates them with spaces for readability, but HTTP Basic Auth needs them without spaces
+    const cleanedPassword = wpAppPassword.replace(/\s+/g, '');
+
     const settings = {
       apiEndpoint: apiEndpoint,
       adminBaseUrl: adminBaseUrl,
       wpUsername: wpUsername,
-      wpAppPassword: wpAppPassword
+      wpAppPassword: cleanedPassword
     };
 
     await chrome.storage.local.set({ settings: settings });

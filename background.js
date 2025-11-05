@@ -177,6 +177,22 @@ async function checkBookingPage(url, tabId) {
   }
 }
 
+// Migration: Clean spaces from Application Passwords in stored settings
+async function migratePasswordSpaces() {
+  const result = await chrome.storage.local.get(['settings']);
+  if (result.settings && result.settings.wpAppPassword) {
+    const currentPassword = result.settings.wpAppPassword;
+    const cleanedPassword = currentPassword.replace(/\s+/g, '');
+
+    // Only update if there were spaces to remove
+    if (currentPassword !== cleanedPassword) {
+      result.settings.wpAppPassword = cleanedPassword;
+      await chrome.storage.local.set({ settings: result.settings });
+      console.log('[Background] Migrated Application Password: removed spaces from stored credential');
+    }
+  }
+}
+
 // Context menu setup (for future right-click feature)
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -203,6 +219,9 @@ chrome.runtime.onInstalled.addListener(() => {
       console.log('[Background] Existing settings preserved');
     }
   });
+
+  // Run password migration
+  migratePasswordSpaces();
 });
 
 // Handle context menu clicks
