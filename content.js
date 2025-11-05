@@ -921,6 +921,15 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
   // Mark as processed for this booking ID
   document.body.dataset.hotelExtensionTableProcessed = bookingId;
 
+  // Ensure Material Symbols font is loaded
+  if (!document.querySelector('link[href*="Material+Symbols+Outlined"]')) {
+    const fontLink = document.createElement('link');
+    fontLink.rel = 'stylesheet';
+    fontLink.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200';
+    document.head.appendChild(fontLink);
+    console.log('[Hotel Extension] Loaded Material Symbols font');
+  }
+
   // Find tbody
   const tbody = table.querySelector('tbody');
   if (!tbody) {
@@ -960,42 +969,98 @@ async function injectRowIntoFullBookingTable(table, bookingId) {
     return;
   }
 
-  // Build buttons HTML for each night
+  // Get admin base URL for links
+  const result = await chrome.storage.local.get(['settings']);
+  const settings = result.settings || {};
+  const adminBaseUrl = settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
+
+  // Build buttons HTML for each night - may have multiple buttons per night
   const buttonsHtml = booking.nights.map(night => {
     const dateShort = formatDateShort(night.date);
     const matchCount = night.match_count || 0;
     const hasPackage = night.has_package || false;
-
-    // Determine button color and behavior based on match status
-    let buttonClass = 'btn-green'; // Default: no match
-    let buttonColor = '#10b981';
-    let buttonText = dateShort;
-    let linkUrl = null;
+    const nightButtons = [];
 
     if (hasPackage && matchCount === 0) {
       // Package without booking - RED (most critical)
-      buttonClass = 'btn-red';
-      buttonColor = '#ef4444';
-    } else if (matchCount > 1 || (matchCount === 1 && night.resos_bookings && !night.resos_bookings[0].is_primary)) {
-      // Multiple matches or non-primary match - AMBER
-      buttonClass = 'btn-amber';
-      buttonColor = '#f59e0b';
-    } else if (matchCount === 1 && night.resos_bookings && night.resos_bookings[0].is_primary) {
-      // Primary match - BLUE with link
-      buttonClass = 'btn-blue';
-      buttonColor = '#60a5fa';
+      nightButtons.push({
+        color: '#ef4444',
+        icon: 'add',
+        text: dateShort,
+        tooltip: 'URGENT: Package booking - Create restaurant reservation',
+        url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&auto-action=create`
+      });
+    } else if (matchCount > 1) {
+      // Multiple matches - show all of them
+      night.resos_bookings.forEach((match, index) => {
+        if (match.is_primary) {
+          // Primary match - BLUE with ResOS link
+          nightButtons.push({
+            color: '#60a5fa',
+            icon: 'visibility',
+            text: `${dateShort}`,
+            tooltip: 'Primary match - View in ResOS',
+            url: match.restaurant_id && match.resos_booking_id
+              ? `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`
+              : `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+          });
+        } else {
+          // Suggested match - AMBER
+          nightButtons.push({
+            color: '#f59e0b',
+            icon: 'search',
+            text: `${dateShort}`,
+            tooltip: 'Suggested match - Review booking',
+            url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+          });
+        }
+      });
+    } else if (matchCount === 1 && night.resos_bookings && night.resos_bookings[0]) {
       const match = night.resos_bookings[0];
-      // Use ResOS deep link for primary matches
-      if (match.restaurant_id && match.resos_booking_id) {
-        linkUrl = `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`;
+      if (match.is_primary) {
+        // Single primary match - BLUE with ResOS link
+        nightButtons.push({
+          color: '#60a5fa',
+          icon: 'visibility',
+          text: dateShort,
+          tooltip: 'Primary match - View in ResOS',
+          url: match.restaurant_id && match.resos_booking_id
+            ? `https://app.resos.com/${match.restaurant_id}/bookings/timetable/${night.date}/${match.resos_booking_id}`
+            : `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+        });
+      } else {
+        // Single suggested match - AMBER
+        nightButtons.push({
+          color: '#f59e0b',
+          icon: 'search',
+          text: dateShort,
+          tooltip: 'Suggested match - Review booking',
+          url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&resos_id=${match.resos_booking_id}&auto-action=match`
+        });
       }
+    } else {
+      // No matches - GREEN (create new)
+      nightButtons.push({
+        color: '#10b981',
+        icon: 'add',
+        text: dateShort,
+        tooltip: 'No match - Create new reservation',
+        url: `${adminBaseUrl}/bookings/?booking_id=${bookingId}&date=${night.date}&auto-action=create`
+      });
     }
 
-    const buttonHtml = linkUrl
-      ? `<a href="${linkUrl}" target="_blank" style="display: inline-block; padding: 6px 12px; margin: 2px; background-color: ${buttonColor}; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer;">${buttonText}</a>`
-      : `<button style="display: inline-block; padding: 6px 12px; margin: 2px; background-color: ${buttonColor}; color: white; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer;">${buttonText}</button>`;
-
-    return buttonHtml;
+    // Generate HTML for all buttons for this night
+    return nightButtons.map(btn => `
+      <a href="${btn.url}"
+         target="_blank"
+         title="${btn.tooltip}"
+         style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; margin: 2px; background-color: ${btn.color}; color: white; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: opacity 0.2s;"
+         onmouseover="this.style.opacity='0.8'"
+         onmouseout="this.style.opacity='1'">
+        <span class="material-symbols-outlined" style="font-size: 16px;">${btn.icon}</span>
+        <span>${btn.text}</span>
+      </a>
+    `).join('');
   }).join('');
 
   if (!buttonsHtml) {
