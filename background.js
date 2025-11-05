@@ -43,6 +43,10 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
       const credentials = btoa(`${settings.settings.wpUsername}:${password}`);
       headers['Authorization'] = `Basic ${credentials}`;
       console.log('[Background] Using Basic Authentication with username:', settings.settings.wpUsername);
+      console.log('[Background] Password length:', settings.settings.wpAppPassword.length);
+      console.log('[Background] Password has spaces:', /\s/.test(settings.settings.wpAppPassword));
+      console.log('[Background] Cleaned password length:', password.length);
+      console.log('[Background] Auth header length:', credentials.length);
     } else {
       console.warn('[Background] No authentication credentials configured');
     }
@@ -55,6 +59,8 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
         context: 'json'
       })
     });
+
+    console.log('[Background] First fetch (json) response status:', response.status, response.statusText);
 
     if (response.ok) {
       const data = await response.json();
@@ -69,9 +75,13 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
         })
       });
 
+      console.log('[Background] Second fetch (html) response status:', htmlResponse.status, htmlResponse.statusText);
+
       let htmlData = null;
       if (htmlResponse.ok) {
         htmlData = await htmlResponse.json();
+      } else {
+        console.warn('[Background] HTML fetch failed:', htmlResponse.status);
       }
 
       // Cache JSON (for badge logic) and HTML (for popup display with inline ResOS links)
@@ -141,6 +151,7 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
       }
     } else {
       // API error, show neutral badge
+      console.error('[Background] First fetch failed:', response.status, response.statusText);
       if (tabId) {
         chrome.action.setBadgeText({ text: '?', tabId: tabId });
         chrome.action.setBadgeBackgroundColor({ color: '#6b7280', tabId: tabId });

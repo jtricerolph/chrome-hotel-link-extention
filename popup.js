@@ -124,6 +124,10 @@ async function fetchBookingData(apiEndpoint, bookingId, context = 'chrome-extens
     const credentials = btoa(`${settings.wpUsername}:${password}`);
     headers['Authorization'] = `Basic ${credentials}`;
     console.log('[Popup] Using Basic Authentication with username:', settings.wpUsername);
+    console.log('[Popup] Password length:', settings.wpAppPassword.length);
+    console.log('[Popup] Password has spaces:', /\s/.test(settings.wpAppPassword));
+    console.log('[Popup] Cleaned password length:', password.length);
+    console.log('[Popup] Auth header length:', credentials.length);
   } else {
     console.warn('[Popup] No authentication credentials configured');
   }
