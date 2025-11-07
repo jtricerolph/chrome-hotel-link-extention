@@ -3,6 +3,17 @@
 // Pattern to match NewBook booking URLs
 const BOOKING_URL_PATTERN = /https:\/\/appeu\.newbook\.cloud\/bookings_view\/(\d+)/;
 
+// Listen for extension icon clicks - open sidepanel
+chrome.action.onClicked.addListener(async (tab) => {
+  console.log('[Background] Extension icon clicked, opening sidepanel');
+  try {
+    await chrome.sidePanel.open({ windowId: tab.windowId });
+    console.log('[Background] Sidepanel opened successfully');
+  } catch (error) {
+    console.error('[Background] Failed to open sidepanel:', error);
+  }
+});
+
 // Listen for tab updates to detect booking pages
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
