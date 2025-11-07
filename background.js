@@ -75,21 +75,43 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
         })
       });
 
-      console.log('[Background] Second fetch (html) response status:', htmlResponse.status, htmlResponse.statusText);
+      console.log('[Background] Second fetch (popup html) response status:', htmlResponse.status, htmlResponse.statusText);
 
       let htmlData = null;
       if (htmlResponse.ok) {
         htmlData = await htmlResponse.json();
       } else {
-        console.warn('[Background] HTML fetch failed:', htmlResponse.status);
+        console.warn('[Background] Popup HTML fetch failed:', htmlResponse.status);
       }
 
-      // Cache JSON (for badge logic) and HTML (for popup display with inline ResOS links)
+      // Also fetch HTML version for the sidepanel (wider layout)
+      const sidepanelResponse = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({
+          booking_id: parseInt(bookingId),
+          context: 'chrome-sidepanel'
+        })
+      });
+
+      console.log('[Background] Third fetch (sidepanel html) response status:', sidepanelResponse.status, sidepanelResponse.statusText);
+
+      let sidepanelHtmlData = null;
+      if (sidepanelResponse.ok) {
+        sidepanelHtmlData = await sidepanelResponse.json();
+      } else {
+        console.warn('[Background] Sidepanel HTML fetch failed:', sidepanelResponse.status);
+      }
+
+      // Cache JSON (for badge logic), popup HTML, and sidepanel HTML
       chrome.storage.local.set({
         cachedBookingData: data,
         cachedBookingHtml: htmlData,
+        cachedSidepanelHtml: sidepanelHtmlData,
         cachedBookingId: bookingId,
-        cachedTimestamp: Date.now()
+        cachedSidepanelBookingId: bookingId,
+        cachedTimestamp: Date.now(),
+        cachedSidepanelTimestamp: Date.now()
       });
 
       // Check for warnings and package alerts
@@ -136,7 +158,7 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
         }
       }
 
-      // Auto-open popup if there are any warnings or critical alerts
+      // Auto-open sidepanel if there are any warnings or critical alerts
       // OR if API explicitly says to auto-open (package booking without reservation)
       // Check if auto-popup is enabled in settings
       const autoPopupResult = await chrome.storage.local.get(['settings']);
@@ -145,19 +167,24 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
       const autoPopupDelay = autoPopupSettings.autoPopupDelay || 2500;
 
       if (enableAutoPopup && (data.should_auto_open || hasPackageAlert || hasWarnings)) {
-        console.log('[Background] Auto-opening popup in', autoPopupDelay, 'ms (has alerts/warnings)');
+        console.log('[Background] Auto-opening sidepanel in', autoPopupDelay, 'ms (has alerts/warnings)');
         setTimeout(async () => {
           try {
-            await chrome.action.openPopup();
-            console.log('[Background] Popup opened successfully');
+            // Get the window ID for the current tab
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (tabs && tabs.length > 0) {
+              const windowId = tabs[0].windowId;
+              await chrome.sidePanel.open({ windowId: windowId });
+              console.log('[Background] Sidepanel opened successfully');
+            }
           } catch (error) {
-            // openPopup may fail if not called from user action in some cases
+            // sidePanel.open may fail if not called from user action in some cases
             // This is expected behavior, just log it
-            console.log('[Background] Auto-open triggered but popup opening restricted:', error.message);
+            console.log('[Background] Auto-open triggered but sidepanel opening restricted:', error.message);
           }
         }, autoPopupDelay);
       } else if (!enableAutoPopup) {
-        console.log('[Background] Auto-popup disabled in settings, skipping popup');
+        console.log('[Background] Auto-popup disabled in settings, skipping sidepanel');
       }
     } else {
       // API error, show neutral badge

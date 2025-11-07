@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hotel Booking Assistant - Sidepanel</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div id="container">
+    <!-- Loading State -->
+    <div id="loadingState" class="state-panel">
+      <div class="spinner"></div>
+      <p>Checking for restaurant bookings...</p>
+    </div>
+
+    <!-- Not on Booking Page State -->
+    <div id="notOnBookingPage" class="state-panel" style="display: none;">
+      <div class="info-icon">ℹ️</div>
+      <h2>Not on a Booking Page</h2>
+      <p>Please navigate to a booking on NewBook to see restaurant matches.</p>
+      <p class="hint">URL format: <code>bookings_view/{id}</code></p>
+    </div>
+
+    <!-- Error State -->
+    <div id="errorState" class="state-panel" style="display: none;">
+      <div class="error-icon">⚠️</div>
+      <h2>Error</h2>
+      <p id="errorMessage"></p>
+      <button id="retryBtn" class="btn-retry">Retry</button>
+    </div>
+
+    <!-- API Response Container -->
+    <div id="apiResponse" style="display: none;">
+      <!-- The admin API will inject HTML here with sidepanel-optimized layout -->
+      <div id="apiResponseContent"></div>
+    </div>
+
+    <!-- Fallback: No Matches Found -->
+    <div id="noMatchesState" class="state-panel" style="display: none;">
+      <div class="info-icon">🔍</div>
+      <h2>No Restaurant Matches Found</h2>
+      <p>Booking ID: <strong id="bookingIdDisplay"></strong></p>
+      <a id="adminLink" href="#" target="_blank" class="btn-admin">
+        Open in Admin System →
+      </a>
+    </div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
