@@ -360,6 +360,9 @@ async function handleEasyToolTipBooking(tooltipElement) {
       }
     }
 
+    // Watch for tooltip removal to notify sidepanel
+    watchTooltipRemoval(tooltipElement, bookingId);
+
     // Inject a Restaurant row into the table for quick access
     await injectRestaurantRowIntoTooltip(tooltipElement, bookingId);
 
@@ -398,6 +401,52 @@ async function handleEasyToolTipBooking(tooltipElement) {
       console.log('[Hotel Extension] Planner hover auto-popup disabled in settings, skipping popup trigger');
     }
   }, hoverDelay); // Configured hover delay for API call
+}
+
+// Watch for tooltip removal and notify sidepanel to refresh
+function watchTooltipRemoval(tooltipElement, bookingId) {
+  console.log('[Hotel Extension] Watching tooltip for removal:', bookingId);
+
+  // Create an observer to watch for the tooltip being removed from DOM
+  const observer = new MutationObserver((mutations) => {
+    // Check if tooltip still exists in DOM
+    if (!document.body.contains(tooltipElement)) {
+      console.log('[Hotel Extension] Tooltip removed from DOM, notifying sidepanel');
+
+      // Notify sidepanel that tooltip was closed
+      if (chrome.runtime?.id) {
+        try {
+          chrome.runtime.sendMessage({
+            action: 'tooltipClosed',
+            bookingId: bookingId
+          });
+
+          // Clear the stored booking ID since tooltip is gone
+          chrome.storage.local.remove('currentBookingId');
+          console.log('[Hotel Extension] Cleared currentBookingId and notified sidepanel');
+        } catch (error) {
+          console.error('[Hotel Extension] Failed to send tooltipClosed message:', error);
+        }
+      }
+
+      // Stop observing
+      observer.disconnect();
+    }
+  });
+
+  // Observe the tooltip's parent for child removals
+  if (tooltipElement.parentElement) {
+    observer.observe(tooltipElement.parentElement, {
+      childList: true,
+      subtree: false
+    });
+  }
+
+  // Also observe document.body for tooltip removal
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
 }
 
 async function injectRestaurantInfoAsTab(tabContent, bookingId) {

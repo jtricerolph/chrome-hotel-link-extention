@@ -30,6 +30,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (request.action === 'bookingUpdated') {
       console.log('[Sidepanel] Booking updated, reloading data...');
       loadBookingData();
+    } else if (request.action === 'tooltipClosed') {
+      console.log('[Sidepanel] Tooltip closed, refreshing display...');
+      loadBookingData();
+    } else if (request.action === 'bookingCleared') {
+      console.log('[Sidepanel] Booking cleared, showing not on booking page...');
+      showState('notOnBookingPage');
     }
   });
 });

@@ -179,23 +179,40 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
 
       if (enableAutoPopup && (data.should_auto_open || hasPackageAlert || hasWarnings)) {
         console.log('[Background] Auto-opening sidepanel in', autoPopupDelay, 'ms (has alerts/warnings)');
+        console.log('[Background] Package alert:', hasPackageAlert, 'Warnings:', hasWarnings, 'API auto-open:', data.should_auto_open);
+
         setTimeout(async () => {
           try {
-            // Get the window ID for the current tab
-            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (tabs && tabs.length > 0) {
-              const windowId = tabs[0].windowId;
+            // Use the tabId from the parameter to get the windowId
+            if (tabId) {
+              const tab = await chrome.tabs.get(tabId);
+              const windowId = tab.windowId;
+              console.log('[Background] Opening sidepanel for windowId:', windowId, 'tabId:', tabId);
               await chrome.sidePanel.open({ windowId: windowId });
               console.log('[Background] Sidepanel opened successfully');
+            } else {
+              // Fallback to active tab query
+              const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+              if (tabs && tabs.length > 0) {
+                const windowId = tabs[0].windowId;
+                console.log('[Background] Opening sidepanel for active window:', windowId);
+                await chrome.sidePanel.open({ windowId: windowId });
+                console.log('[Background] Sidepanel opened successfully');
+              } else {
+                console.log('[Background] No active tab found, cannot open sidepanel');
+              }
             }
           } catch (error) {
             // sidePanel.open may fail if not called from user action in some cases
             // This is expected behavior, just log it
-            console.log('[Background] Auto-open triggered but sidepanel opening restricted:', error.message);
+            console.error('[Background] Auto-open triggered but sidepanel opening failed:', error);
+            console.error('[Background] Error details:', error.message, error.stack);
           }
         }, autoPopupDelay);
       } else if (!enableAutoPopup) {
         console.log('[Background] Auto-popup disabled in settings, skipping sidepanel');
+      } else {
+        console.log('[Background] No alerts/warnings detected, not auto-opening sidepanel');
       }
     } else {
       // API error, show neutral badge
@@ -361,6 +378,23 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     // Check the booking and try to open popup
     checkBookingAndOpenPopup(bookingId, sender.tab?.id);
+
+    sendResponse({ success: true });
+    return true;
+  }
+
+  // Handle tooltip closed notification - forward to sidepanel
+  if (request.action === 'tooltipClosed') {
+    console.log('[Background] Tooltip closed for booking:', request.bookingId);
+
+    // Forward to sidepanel to refresh
+    chrome.runtime.sendMessage({
+      action: 'tooltipClosed',
+      bookingId: request.bookingId
+    }).catch(err => {
+      // Sidepanel might not be open, that's okay
+      console.log('[Background] Could not notify sidepanel (may not be open):', err.message);
+    });
 
     sendResponse({ success: true });
     return true;
