@@ -14,10 +14,25 @@ chrome.action.onClicked.addListener(async (tab) => {
   }
 });
 
-// Listen for tab updates to detect booking pages
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+// Listen for tab updates to detect booking pages and enable/disable sidepanel
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
-    checkBookingPage(tab.url, tabId);
+    // Enable sidepanel only on NewBook domain
+    const isNewBookTab = tab.url.startsWith('https://appeu.newbook.cloud/');
+
+    try {
+      await chrome.sidePanel.setOptions({
+        tabId: tabId,
+        enabled: isNewBookTab
+      });
+      console.log('[Background] Sidepanel', isNewBookTab ? 'enabled' : 'disabled', 'for tab', tabId);
+    } catch (error) {
+      console.error('[Background] Failed to set sidepanel options:', error);
+    }
+
+    if (isNewBookTab) {
+      checkBookingPage(tab.url, tabId);
+    }
   }
 });
 
@@ -25,7 +40,22 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   const tab = await chrome.tabs.get(activeInfo.tabId);
   if (tab.url) {
-    checkBookingPage(tab.url, activeInfo.tabId);
+    // Enable sidepanel only on NewBook domain
+    const isNewBookTab = tab.url.startsWith('https://appeu.newbook.cloud/');
+
+    try {
+      await chrome.sidePanel.setOptions({
+        tabId: activeInfo.tabId,
+        enabled: isNewBookTab
+      });
+      console.log('[Background] Sidepanel', isNewBookTab ? 'enabled' : 'disabled', 'for active tab', activeInfo.tabId);
+    } catch (error) {
+      console.error('[Background] Failed to set sidepanel options:', error);
+    }
+
+    if (isNewBookTab) {
+      checkBookingPage(tab.url, activeInfo.tabId);
+    }
   }
 });
 
@@ -180,33 +210,50 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
       if (enableAutoPopup && (data.should_auto_open || hasPackageAlert || hasWarnings)) {
         console.log('[Background] Auto-opening sidepanel in', autoPopupDelay, 'ms (has alerts/warnings)');
         console.log('[Background] Package alert:', hasPackageAlert, 'Warnings:', hasWarnings, 'API auto-open:', data.should_auto_open);
+        console.log('[Background] Will attempt auto-open with tabId:', tabId);
 
         setTimeout(async () => {
           try {
-            // Use the tabId from the parameter to get the windowId
+            // Try using tabId directly first (Chrome 116+)
             if (tabId) {
+              console.log('[Background] Attempting sidePanel.open with tabId:', tabId);
+              try {
+                await chrome.sidePanel.open({ tabId: tabId });
+                console.log('[Background] Sidepanel opened successfully using tabId');
+                return;
+              } catch (tabError) {
+                console.log('[Background] tabId method failed, trying windowId:', tabError.message);
+                // Fall through to windowId method
+              }
+
+              // Fallback to windowId method
               const tab = await chrome.tabs.get(tabId);
               const windowId = tab.windowId;
-              console.log('[Background] Opening sidepanel for windowId:', windowId, 'tabId:', tabId);
+              console.log('[Background] Attempting sidePanel.open with windowId:', windowId, 'from tabId:', tabId);
               await chrome.sidePanel.open({ windowId: windowId });
-              console.log('[Background] Sidepanel opened successfully');
+              console.log('[Background] Sidepanel opened successfully using windowId');
             } else {
               // Fallback to active tab query
+              console.log('[Background] No tabId provided, querying active tab...');
               const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
               if (tabs && tabs.length > 0) {
                 const windowId = tabs[0].windowId;
                 console.log('[Background] Opening sidepanel for active window:', windowId);
                 await chrome.sidePanel.open({ windowId: windowId });
-                console.log('[Background] Sidepanel opened successfully');
+                console.log('[Background] Sidepanel opened successfully using active window');
               } else {
-                console.log('[Background] No active tab found, cannot open sidepanel');
+                console.error('[Background] No active tab found, cannot open sidepanel');
               }
             }
           } catch (error) {
             // sidePanel.open may fail if not called from user action in some cases
-            // This is expected behavior, just log it
-            console.error('[Background] Auto-open triggered but sidepanel opening failed:', error);
-            console.error('[Background] Error details:', error.message, error.stack);
+            // This is expected behavior in Manifest V3
+            console.error('[Background] ❌ Auto-open FAILED - sidepanel opening blocked by Chrome');
+            console.error('[Background] Error name:', error.name);
+            console.error('[Background] Error message:', error.message);
+            console.error('[Background] Error stack:', error.stack);
+            console.error('[Background] Note: Chrome may require user gesture to open sidepanel');
+            console.error('[Background] Suggestion: User should click extension icon to see alerts');
           }
         }, autoPopupDelay);
       } else if (!enableAutoPopup) {
@@ -391,6 +438,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     chrome.runtime.sendMessage({
       action: 'tooltipClosed',
       bookingId: request.bookingId
+    }).catch(err => {
+      // Sidepanel might not be open, that's okay
+      console.log('[Background] Could not notify sidepanel (may not be open):', err.message);
+    });
+
+    sendResponse({ success: true });
+    return true;
+  }
+
+  // Handle booking updated notification - forward to sidepanel
+  if (request.action === 'bookingUpdated') {
+    console.log('[Background] Booking updated from', request.previousBookingId, 'to', request.bookingId);
+
+    // Forward to sidepanel to refresh
+    chrome.runtime.sendMessage({
+      action: 'bookingUpdated',
+      bookingId: request.bookingId,
+      previousBookingId: request.previousBookingId
     }).catch(err => {
       // Sidepanel might not be open, that's okay
       console.log('[Background] Could not notify sidepanel (may not be open):', err.message);
