@@ -402,51 +402,15 @@ async function handleEasyToolTipBooking(tooltipElement) {
   const enablePlannerHoverPopup = settings.enablePlannerHover !== undefined ? settings.enablePlannerHover : true;
   const autoPopupDelay = settings.autoPopupDelay || 2500;
 
-  // Mark as fully processed immediately (easyTooltip is double-click triggered, not hover)
+  // Mark as fully processed immediately (easyTooltip is hover-triggered)
   tooltipElement.dataset.hotelExtensionProcessed = 'true';
   delete tooltipElement.dataset.hotelExtensionPending;
 
-  console.log('[Hotel Extension] Processing easyTooltip booking:', bookingId);
+  console.log('[Hotel Extension] Processing easyTooltip booking (hover-triggered):', bookingId);
 
-  // Store the current booking ID for the extension popup and notify sidepanel
-  if (chrome.runtime?.id) {
-    try {
-      // Get the previous booking ID to check if it changed
-      const previousResult = await chrome.storage.local.get(['currentBookingId']);
-      const previousBookingId = previousResult.currentBookingId;
-
-      // Store the new booking ID
-      chrome.storage.local.set({ currentBookingId: bookingId });
-      console.log('[Hotel Extension] Stored currentBookingId from tooltip:', bookingId);
-
-      // Notify sidepanel about tooltip detection
-      console.log('[Hotel Extension] Tooltip detected for booking:', bookingId);
-      chrome.runtime.sendMessage({
-        action: 'tooltipDetected',
-        bookingId: bookingId,
-        source: 'easyTooltip'
-      }).catch(err => {
-        console.log('[Hotel Extension] Could not notify sidepanel (may not be open):', err.message);
-      });
-
-      // If booking changed, also send bookingUpdated for other listeners
-      if (previousBookingId !== bookingId) {
-        console.log('[Hotel Extension] Booking changed from', previousBookingId, 'to', bookingId);
-        chrome.runtime.sendMessage({
-          action: 'bookingUpdated',
-          bookingId: bookingId,
-          previousBookingId: previousBookingId
-        }).catch(err => {
-          console.log('[Hotel Extension] Could not notify sidepanel (may not be open):', err.message);
-        });
-      }
-    } catch (error) {
-      console.log('[Hotel Extension] Failed to store booking ID from tooltip:', error.message);
-    }
-  }
-
-  // Watch for tooltip removal to notify sidepanel
-  watchTooltipRemoval(tooltipElement, bookingId);
+  // Note: easyTooltip appears on HOVER, not click
+  // We don't notify the sidepanel here - only single-click does that
+  // This just injects the restaurant row into the tooltip for quick reference
 
   // Inject a Restaurant row into the table for quick access
   await injectRestaurantRowIntoTooltip(tooltipElement, bookingId);
