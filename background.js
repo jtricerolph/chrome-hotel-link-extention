@@ -21,11 +21,20 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     const isNewBookTab = tab.url.startsWith('https://appeu.newbook.cloud/');
 
     try {
-      await chrome.sidePanel.setOptions({
-        tabId: tabId,
-        enabled: isNewBookTab
-      });
-      console.log('[Background] Sidepanel', isNewBookTab ? 'enabled' : 'disabled', 'for tab', tabId);
+      if (isNewBookTab) {
+        await chrome.sidePanel.setOptions({
+          tabId: tabId,
+          path: 'sidepanel.html',
+          enabled: true
+        });
+        console.log('[Background] Sidepanel enabled for NewBook tab', tabId);
+      } else {
+        await chrome.sidePanel.setOptions({
+          tabId: tabId,
+          enabled: false
+        });
+        console.log('[Background] Sidepanel disabled for non-NewBook tab', tabId);
+      }
     } catch (error) {
       console.error('[Background] Failed to set sidepanel options:', error);
     }
@@ -44,11 +53,20 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
     const isNewBookTab = tab.url.startsWith('https://appeu.newbook.cloud/');
 
     try {
-      await chrome.sidePanel.setOptions({
-        tabId: activeInfo.tabId,
-        enabled: isNewBookTab
-      });
-      console.log('[Background] Sidepanel', isNewBookTab ? 'enabled' : 'disabled', 'for active tab', activeInfo.tabId);
+      if (isNewBookTab) {
+        await chrome.sidePanel.setOptions({
+          tabId: activeInfo.tabId,
+          path: 'sidepanel.html',
+          enabled: true
+        });
+        console.log('[Background] Sidepanel enabled for active NewBook tab', activeInfo.tabId);
+      } else {
+        await chrome.sidePanel.setOptions({
+          tabId: activeInfo.tabId,
+          enabled: false
+        });
+        console.log('[Background] Sidepanel disabled for active non-NewBook tab', activeInfo.tabId);
+      }
     } catch (error) {
       console.error('[Background] Failed to set sidepanel options:', error);
     }
@@ -441,11 +459,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  // Handle tooltip detected notification - forward to sidepanel
+  if (request.action === 'tooltipDetected') {
+    console.log('[Background] Tooltip detected for booking:', request.bookingId);
+
+    // Forward to sidepanel to switch to Restaurant tab
+    chrome.runtime.sendMessage({
+      action: 'tooltipDetected',
+      bookingId: request.bookingId,
+      source: request.source
+    }).catch(err => {
+      // Sidepanel might not be open, that's okay
+      console.log('[Background] Could not notify sidepanel (may not be open):', err.message);
+    });
+
+    sendResponse({ success: true });
+    return true;
+  }
+
   // Handle tooltip closed notification - forward to sidepanel
   if (request.action === 'tooltipClosed') {
     console.log('[Background] Tooltip closed for booking:', request.bookingId);
 
-    // Forward to sidepanel to refresh
+    // Forward to sidepanel (sidepanel will use 60s timeout to return to Summary)
     chrome.runtime.sendMessage({
       action: 'tooltipClosed',
       bookingId: request.bookingId

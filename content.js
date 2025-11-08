@@ -361,9 +361,19 @@ async function handleEasyToolTipBooking(tooltipElement) {
         chrome.storage.local.set({ currentBookingId: bookingId });
         console.log('[Hotel Extension] Stored currentBookingId from tooltip:', bookingId);
 
-        // If booking changed, notify sidepanel to refresh
+        // Notify sidepanel about tooltip detection
+        console.log('[Hotel Extension] Tooltip detected for booking:', bookingId);
+        chrome.runtime.sendMessage({
+          action: 'tooltipDetected',
+          bookingId: bookingId,
+          source: 'easyTooltip'
+        }).catch(err => {
+          console.log('[Hotel Extension] Could not notify sidepanel (may not be open):', err.message);
+        });
+
+        // If booking changed, also send bookingUpdated for other listeners
         if (previousBookingId !== bookingId) {
-          console.log('[Hotel Extension] Booking changed from', previousBookingId, 'to', bookingId, '- notifying sidepanel');
+          console.log('[Hotel Extension] Booking changed from', previousBookingId, 'to', bookingId);
           chrome.runtime.sendMessage({
             action: 'bookingUpdated',
             bookingId: bookingId,

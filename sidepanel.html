@@ -3,47 +3,124 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hotel Booking Assistant - Sidepanel</title>
+  <title>Hotel Booking Assistant</title>
   <link rel="stylesheet" href="sidepanel.css">
 </head>
 <body>
   <div id="container">
-    <!-- Loading State -->
-    <div id="loadingState" class="state-panel">
-      <div class="spinner"></div>
-      <p>Checking for restaurant bookings...</p>
-    </div>
+    <!-- Tab Navigation -->
+    <nav class="tab-navigation">
+      <button class="tab-button active" data-tab="summary" id="summaryTab">
+        <span class="tab-icon">📋</span>
+        <span class="tab-label">Summary</span>
+        <span class="tab-badge" id="summaryBadge" style="display: none;">0</span>
+      </button>
+      <button class="tab-button" data-tab="restaurant" id="restaurantTab">
+        <span class="tab-icon">🍽️</span>
+        <span class="tab-label">Restaurant</span>
+        <span class="tab-badge" id="restaurantBadge" style="display: none;">0</span>
+      </button>
+      <button class="tab-button" data-tab="checks" id="checksTab">
+        <span class="tab-icon">✓</span>
+        <span class="tab-label">Checks</span>
+        <span class="tab-badge" id="checksBadge" style="display: none;">0</span>
+      </button>
+    </nav>
 
-    <!-- Not on Booking Page State -->
-    <div id="notOnBookingPage" class="state-panel" style="display: none;">
-      <div class="info-icon">ℹ️</div>
-      <h2>Not on a Booking Page</h2>
-      <p>Please navigate to a booking on NewBook to see restaurant matches.</p>
-      <p class="hint">URL format: <code>bookings_view/{id}</code></p>
-    </div>
+    <!-- Tab Content Panels -->
+    <div class="tab-content-wrapper">
 
-    <!-- Error State -->
-    <div id="errorState" class="state-panel" style="display: none;">
-      <div class="error-icon">⚠️</div>
-      <h2>Error</h2>
-      <p id="errorMessage"></p>
-      <button id="retryBtn" class="btn-retry">Retry</button>
-    </div>
+      <!-- SUMMARY TAB -->
+      <div id="summaryTabContent" class="tab-content active">
+        <!-- Loading State -->
+        <div id="summaryLoading" class="state-panel">
+          <div class="spinner"></div>
+          <p>Loading recent bookings...</p>
+        </div>
 
-    <!-- API Response Container -->
-    <div id="apiResponse" style="display: none;">
-      <!-- The admin API will inject HTML here with sidepanel-optimized layout -->
-      <div id="apiResponseContent"></div>
-    </div>
+        <!-- Error State -->
+        <div id="summaryError" class="state-panel" style="display: none;">
+          <div class="error-icon">⚠️</div>
+          <h2>Error</h2>
+          <p id="summaryErrorMessage"></p>
+          <button id="summaryRetryBtn" class="btn-retry">Retry</button>
+        </div>
 
-    <!-- Fallback: No Matches Found -->
-    <div id="noMatchesState" class="state-panel" style="display: none;">
-      <div class="info-icon">🔍</div>
-      <h2>No Restaurant Matches Found</h2>
-      <p>Booking ID: <strong id="bookingIdDisplay"></strong></p>
-      <a id="adminLink" href="#" target="_blank" class="btn-admin">
-        Open in Admin System →
-      </a>
+        <!-- Summary Content -->
+        <div id="summaryContent" style="display: none;">
+          <!-- API will inject summary HTML here -->
+        </div>
+      </div>
+
+      <!-- RESTAURANT TAB -->
+      <div id="restaurantTabContent" class="tab-content" style="display: none;">
+        <!-- Loading State -->
+        <div id="restaurantLoading" class="state-panel">
+          <div class="spinner"></div>
+          <p>Checking for restaurant bookings...</p>
+        </div>
+
+        <!-- Not on Booking Page State -->
+        <div id="restaurantNotOnBooking" class="state-panel" style="display: none;">
+          <div class="info-icon">ℹ️</div>
+          <h2>No Booking Selected</h2>
+          <p>Navigate to a booking on NewBook or double-click a booking block in the planner to see restaurant matches.</p>
+          <p class="hint">URL format: <code>bookings_view/{id}</code></p>
+        </div>
+
+        <!-- Error State -->
+        <div id="restaurantError" class="state-panel" style="display: none;">
+          <div class="error-icon">⚠️</div>
+          <h2>Error</h2>
+          <p id="restaurantErrorMessage"></p>
+          <button id="restaurantRetryBtn" class="btn-retry">Retry</button>
+        </div>
+
+        <!-- Restaurant Content -->
+        <div id="restaurantContent" style="display: none;">
+          <!-- API will inject restaurant match HTML here -->
+        </div>
+
+        <!-- Fallback: No Matches Found -->
+        <div id="restaurantNoMatches" class="state-panel" style="display: none;">
+          <div class="info-icon">🔍</div>
+          <h2>No Restaurant Matches Found</h2>
+          <p>Booking ID: <strong id="restaurantBookingIdDisplay"></strong></p>
+          <a id="restaurantAdminLink" href="#" target="_blank" class="btn-admin">
+            Open in Admin System →
+          </a>
+        </div>
+      </div>
+
+      <!-- CHECKS TAB -->
+      <div id="checksTabContent" class="tab-content" style="display: none;">
+        <!-- Loading State -->
+        <div id="checksLoading" class="state-panel">
+          <div class="spinner"></div>
+          <p>Running checks...</p>
+        </div>
+
+        <!-- No Booking Selected State -->
+        <div id="checksNoBooking" class="state-panel" style="display: none;">
+          <div class="info-icon">ℹ️</div>
+          <h2>No Booking Selected</h2>
+          <p>Navigate to a booking on NewBook to run checks.</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="checksError" class="state-panel" style="display: none;">
+          <div class="error-icon">⚠️</div>
+          <h2>Error</h2>
+          <p id="checksErrorMessage"></p>
+          <button id="checksRetryBtn" class="btn-retry">Retry</button>
+        </div>
+
+        <!-- Checks Content -->
+        <div id="checksContent" style="display: none;">
+          <!-- API will inject checks HTML here -->
+        </div>
+      </div>
+
     </div>
   </div>
 
