@@ -400,111 +400,91 @@ async function handleEasyToolTipBooking(tooltipElement) {
   const settingsResult = await chrome.storage.local.get(['settings']);
   const settings = settingsResult.settings || {};
   const enablePlannerHoverPopup = settings.enablePlannerHover !== undefined ? settings.enablePlannerHover : true;
-  const hoverDelay = settings.hoverDelay || 500;
   const autoPopupDelay = settings.autoPopupDelay || 2500;
 
-  // Add configured delay before processing API call - only process if tooltip is still visible
-  // This prevents API bombardment when quickly moving mouse across the planner
-  // Button injection always happens; the setting only controls whether popup triggers
-  setTimeout(async () => {
-    // Check if tooltip still exists and is visible
-    if (!document.body.contains(tooltipElement)) {
-      console.log('[Hotel Extension] Tooltip was removed before delay completed, skipping');
-      return;
-    }
+  // Mark as fully processed immediately (easyTooltip is double-click triggered, not hover)
+  tooltipElement.dataset.hotelExtensionProcessed = 'true';
+  delete tooltipElement.dataset.hotelExtensionPending;
 
-    const isVisible = tooltipElement.style.display !== 'none' &&
-                     tooltipElement.offsetParent !== null;
+  console.log('[Hotel Extension] Processing easyTooltip booking:', bookingId);
 
-    if (!isVisible) {
-      console.log('[Hotel Extension] Tooltip is no longer visible, skipping');
-      return;
-    }
+  // Store the current booking ID for the extension popup and notify sidepanel
+  if (chrome.runtime?.id) {
+    try {
+      // Get the previous booking ID to check if it changed
+      const previousResult = await chrome.storage.local.get(['currentBookingId']);
+      const previousBookingId = previousResult.currentBookingId;
 
-    // Now mark as fully processed
-    tooltipElement.dataset.hotelExtensionProcessed = 'true';
-    delete tooltipElement.dataset.hotelExtensionPending;
+      // Store the new booking ID
+      chrome.storage.local.set({ currentBookingId: bookingId });
+      console.log('[Hotel Extension] Stored currentBookingId from tooltip:', bookingId);
 
-    console.log(`[Hotel Extension] Tooltip remained visible for ${hoverDelay}ms, processing booking:`, bookingId);
+      // Notify sidepanel about tooltip detection
+      console.log('[Hotel Extension] Tooltip detected for booking:', bookingId);
+      chrome.runtime.sendMessage({
+        action: 'tooltipDetected',
+        bookingId: bookingId,
+        source: 'easyTooltip'
+      }).catch(err => {
+        console.log('[Hotel Extension] Could not notify sidepanel (may not be open):', err.message);
+      });
 
-    // Store the current booking ID for the extension popup and notify sidepanel
-    if (chrome.runtime?.id) {
-      try {
-        // Get the previous booking ID to check if it changed
-        const previousResult = await chrome.storage.local.get(['currentBookingId']);
-        const previousBookingId = previousResult.currentBookingId;
-
-        // Store the new booking ID
-        chrome.storage.local.set({ currentBookingId: bookingId });
-        console.log('[Hotel Extension] Stored currentBookingId from tooltip:', bookingId);
-
-        // Notify sidepanel about tooltip detection
-        console.log('[Hotel Extension] Tooltip detected for booking:', bookingId);
+      // If booking changed, also send bookingUpdated for other listeners
+      if (previousBookingId !== bookingId) {
+        console.log('[Hotel Extension] Booking changed from', previousBookingId, 'to', bookingId);
         chrome.runtime.sendMessage({
-          action: 'tooltipDetected',
+          action: 'bookingUpdated',
           bookingId: bookingId,
-          source: 'easyTooltip'
+          previousBookingId: previousBookingId
         }).catch(err => {
           console.log('[Hotel Extension] Could not notify sidepanel (may not be open):', err.message);
         });
-
-        // If booking changed, also send bookingUpdated for other listeners
-        if (previousBookingId !== bookingId) {
-          console.log('[Hotel Extension] Booking changed from', previousBookingId, 'to', bookingId);
-          chrome.runtime.sendMessage({
-            action: 'bookingUpdated',
-            bookingId: bookingId,
-            previousBookingId: previousBookingId
-          }).catch(err => {
-            console.log('[Hotel Extension] Could not notify sidepanel (may not be open):', err.message);
-          });
-        }
-      } catch (error) {
-        console.log('[Hotel Extension] Failed to store booking ID from tooltip:', error.message);
       }
+    } catch (error) {
+      console.log('[Hotel Extension] Failed to store booking ID from tooltip:', error.message);
     }
+  }
 
-    // Watch for tooltip removal to notify sidepanel
-    watchTooltipRemoval(tooltipElement, bookingId);
+  // Watch for tooltip removal to notify sidepanel
+  watchTooltipRemoval(tooltipElement, bookingId);
 
-    // Inject a Restaurant row into the table for quick access
-    await injectRestaurantRowIntoTooltip(tooltipElement, bookingId);
+  // Inject a Restaurant row into the table for quick access
+  await injectRestaurantRowIntoTooltip(tooltipElement, bookingId);
 
-    // Trigger the extension popup for alerts/warnings with configured delay (if enabled)
-    // This prevents popup spam when quickly scanning bookings
-    if (enablePlannerHoverPopup) {
-      setTimeout(() => {
-        // Check again if tooltip is still visible before triggering popup
-        if (!document.body.contains(tooltipElement)) {
-          console.log('[Hotel Extension] Tooltip removed before popup trigger, skipping popup');
-          return;
+  // Trigger the extension popup for alerts/warnings with configured delay (if enabled)
+  // This prevents popup spam when quickly scanning bookings
+  if (enablePlannerHoverPopup) {
+    setTimeout(() => {
+      // Check again if tooltip is still visible before triggering popup
+      if (!document.body.contains(tooltipElement)) {
+        console.log('[Hotel Extension] Tooltip removed before popup trigger, skipping popup');
+        return;
+      }
+
+      const stillVisible = tooltipElement.style.display !== 'none' &&
+                          tooltipElement.offsetParent !== null;
+
+      if (!stillVisible) {
+        console.log('[Hotel Extension] Tooltip no longer visible, skipping popup');
+        return;
+      }
+
+      console.log(`[Hotel Extension] Tooltip visible for ${autoPopupDelay}ms, triggering popup check...`);
+      if (chrome.runtime?.id) {
+        try {
+          chrome.runtime.sendMessage({
+            action: 'checkBookingFromDialog',
+            bookingId: bookingId
+          });
+          console.log('[Hotel Extension] Message sent to background script');
+        } catch (error) {
+          console.error('[Hotel Extension] Failed to send message to background:', error);
         }
-
-        const stillVisible = tooltipElement.style.display !== 'none' &&
-                            tooltipElement.offsetParent !== null;
-
-        if (!stillVisible) {
-          console.log('[Hotel Extension] Tooltip no longer visible, skipping popup');
-          return;
-        }
-
-        console.log(`[Hotel Extension] Tooltip remained visible for ${autoPopupDelay}ms, triggering popup check...`);
-        if (chrome.runtime?.id) {
-          try {
-            chrome.runtime.sendMessage({
-              action: 'checkBookingFromDialog',
-              bookingId: bookingId
-            });
-            console.log('[Hotel Extension] Message sent to background script');
-          } catch (error) {
-            console.error('[Hotel Extension] Failed to send message to background:', error);
-          }
-        }
-      }, autoPopupDelay - hoverDelay); // Additional delay (autoPopupDelay total from initial hover)
-    } else {
-      console.log('[Hotel Extension] Planner hover auto-popup disabled in settings, skipping popup trigger');
-    }
-  }, hoverDelay); // Configured hover delay for API call
+      }
+    }, autoPopupDelay); // Delay before auto-triggering popup
+  } else {
+    console.log('[Hotel Extension] Planner hover auto-popup disabled in settings, skipping popup trigger');
+  }
 }
 
 // Watch for tooltip removal and notify sidepanel to refresh
