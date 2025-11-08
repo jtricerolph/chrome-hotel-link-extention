@@ -182,7 +182,7 @@ function handlePlannerBlockClick(event) {
 
       // Reset click count
       clickCount = 0;
-    }, 250); // 250ms delay to detect double-click
+    }, 150); // 150ms delay to detect double-click
   } else {
     // Double-click detected - cancel single-click action
     console.log('[Hotel Extension] Double-click detected on booking block:', bookingId, '(letting NewBook handle it)');
