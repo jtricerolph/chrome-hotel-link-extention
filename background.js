@@ -477,6 +477,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 
+  // Handle planner block single-click - forward to sidepanel
+  if (request.action === 'plannerBlockClicked') {
+    console.log('[Background] Planner block clicked for booking:', request.bookingId);
+
+    // Forward to sidepanel to refresh and switch to appropriate tab
+    chrome.runtime.sendMessage({
+      action: 'plannerBlockClicked',
+      bookingId: request.bookingId,
+      source: request.source
+    }).catch(err => {
+      // Sidepanel might not be open, that's okay
+      console.log('[Background] Could not notify sidepanel (may not be open):', err.message);
+    });
+
+    sendResponse({ success: true });
+    return true;
+  }
+
   // Handle tooltip closed notification - forward to sidepanel
   if (request.action === 'tooltipClosed') {
     console.log('[Background] Tooltip closed for booking:', request.bookingId);

@@ -109,9 +109,86 @@ function addBookingHighlighting() {
   console.log('[Hotel Extension] Added booking highlighting styles');
 }
 
-// Enable highlighting on booking chart pages
+// Enable highlighting on booking chart pages and setup click listeners
 if (window.location.href.includes('newbook.cloud')) {
   addBookingHighlighting();
+  setupPlannerClickListeners();
+}
+
+// ============================================================================
+// PLANNER SINGLE-CLICK DETECTION
+// ============================================================================
+
+let clickTimer = null;
+let clickCount = 0;
+
+function setupPlannerClickListeners() {
+  console.log('[Hotel Extension] Setting up planner click listeners...');
+
+  // Watch for booking blocks being added to DOM
+  const setupClicksForExistingBlocks = () => {
+    const bookingBlocks = document.querySelectorAll('[booking_id]');
+    console.log('[Hotel Extension] Found', bookingBlocks.length, 'booking blocks');
+
+    bookingBlocks.forEach(block => {
+      // Skip if already has listener
+      if (block.dataset.hotelExtensionClickListenerAttached) return;
+
+      block.addEventListener('click', handlePlannerBlockClick);
+      block.dataset.hotelExtensionClickListenerAttached = 'true';
+    });
+  };
+
+  // Setup listeners for existing blocks
+  setupClicksForExistingBlocks();
+
+  // Watch for new blocks being added (planner navigation, date changes, etc.)
+  const clickListenerObserver = new MutationObserver(() => {
+    setupClicksForExistingBlocks();
+  });
+
+  if (document.body) {
+    clickListenerObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  }
+}
+
+function handlePlannerBlockClick(event) {
+  const bookingBlock = event.currentTarget;
+  const bookingId = bookingBlock.getAttribute('booking_id');
+
+  if (!bookingId) return;
+
+  clickCount++;
+
+  if (clickCount === 1) {
+    // Wait to see if this is a double-click
+    clickTimer = setTimeout(() => {
+      // Single click confirmed - trigger sidepanel refresh
+      console.log('[Hotel Extension] Single-click detected on booking block:', bookingId);
+
+      // Send message to background to notify sidepanel
+      if (chrome.runtime?.id) {
+        chrome.runtime.sendMessage({
+          action: 'plannerBlockClicked',
+          bookingId: bookingId,
+          source: 'planner-single-click'
+        }).catch(err => {
+          console.log('[Hotel Extension] Could not notify sidepanel (may not be open):', err.message);
+        });
+      }
+
+      // Reset click count
+      clickCount = 0;
+    }, 250); // 250ms delay to detect double-click
+  } else {
+    // Double-click detected - cancel single-click action
+    console.log('[Hotel Extension] Double-click detected on booking block:', bookingId, '(letting NewBook handle it)');
+    clearTimeout(clickTimer);
+    clickCount = 0;
+  }
 }
 
 // ============================================================================

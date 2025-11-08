@@ -19,7 +19,10 @@ const STATE = {
     summary: 0,
     restaurant: 0,
     checks: 0
-  }
+  },
+
+  // Summary change detection
+  lastSummaryData: null
 };
 
 // ============================================
@@ -118,24 +121,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   switchTab('summary');
   loadSummaryTab();
 
-  // Setup auto-refresh for Summary tab (every 60 seconds)
+  // Setup auto-refresh for Summary tab (every 30 seconds)
   STATE.summaryRefreshInterval = setInterval(() => {
-    if (STATE.currentTab === 'summary') {
-      console.log('[Sidepanel] Auto-refreshing Summary tab...');
-      loadSummaryTab();
-    }
-  }, 60000); // 60 seconds
+    console.log('[Sidepanel] Auto-refreshing Summary tab...');
+    loadSummaryTab();
+  }, 30000); // 30 seconds
 
   // Listen for messages from background script
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log('[Sidepanel] Received message:', request);
 
     if (request.action === 'bookingUpdated') {
-      // Booking detected - switch to Restaurant tab and load data
+      // Booking detected - switch to appropriate tab based on issues
       console.log('[Sidepanel] Booking detected:', request.bookingId);
       STATE.currentBookingId = request.bookingId;
-      switchTab('restaurant');
-      loadRestaurantTab();
+      loadAndSwitchToIssueTab();
       resetInactivityTimeout();
     } else if (request.action === 'bookingCleared') {
       // Booking cleared - return to Summary tab
@@ -143,11 +143,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       STATE.currentBookingId = null;
       switchTab('summary');
     } else if (request.action === 'tooltipDetected') {
-      // Tooltip detected (double-click on booking block)
+      // Tooltip detected (double-click on booking block) - switch to appropriate tab
       console.log('[Sidepanel] Tooltip detected for booking:', request.bookingId);
       STATE.currentBookingId = request.bookingId;
-      switchTab('restaurant');
-      loadRestaurantTab();
+      loadAndSwitchToIssueTab();
+      resetInactivityTimeout();
+    } else if (request.action === 'tooltipClosed') {
+      // Tooltip closed - immediately return to Summary tab
+      console.log('[Sidepanel] Tooltip closed');
+      STATE.currentBookingId = null;
+      clearInactivityTimeout();
+      switchTab('summary');
+    } else if (request.action === 'plannerBlockClicked') {
+      // Single-click on planner block - switch to appropriate tab based on issues
+      console.log('[Sidepanel] Planner block clicked for booking:', request.bookingId);
+      STATE.currentBookingId = request.bookingId;
+      loadAndSwitchToIssueTab();
       resetInactivityTimeout();
     } else if (request.action === 'refreshSummary') {
       // Manual refresh request for Summary tab
@@ -195,6 +206,145 @@ function switchTab(tabName) {
 }
 
 // ============================================
+// SMART TAB SWITCHING
+// ============================================
+// Load both Restaurant and Checks tabs, then switch to the one with issues
+// Priority: Restaurant if both have issues, otherwise show the one with issues
+
+async function loadAndSwitchToIssueTab() {
+  if (!STATE.currentBookingId) {
+    console.log('[Sidepanel] No booking ID, cannot load issue tabs');
+    return;
+  }
+
+  console.log('[Sidepanel] Loading Restaurant and Checks data to determine which tab to show...');
+
+  // Load both tabs in parallel
+  const [restaurantData, checksData] = await Promise.all([
+    loadRestaurantData(),
+    loadChecksData()
+  ]);
+
+  // Get badge counts from loaded data
+  const restaurantBadgeCount = restaurantData?.badge_count || 0;
+  const checksBadgeCount = checksData?.badge_count || 0;
+
+  console.log('[Sidepanel] Badge counts - Restaurant:', restaurantBadgeCount, 'Checks:', checksBadgeCount);
+
+  // Determine which tab to show
+  let targetTab = 'restaurant'; // Default to restaurant
+
+  if (restaurantBadgeCount > 0 && checksBadgeCount > 0) {
+    // Both have issues - Restaurant priority
+    targetTab = 'restaurant';
+    console.log('[Sidepanel] Both tabs have issues, prioritizing Restaurant');
+  } else if (restaurantBadgeCount > 0) {
+    // Only Restaurant has issues
+    targetTab = 'restaurant';
+    console.log('[Sidepanel] Only Restaurant has issues');
+  } else if (checksBadgeCount > 0) {
+    // Only Checks has issues
+    targetTab = 'checks';
+    console.log('[Sidepanel] Only Checks has issues');
+  } else {
+    // No issues - default to Restaurant
+    targetTab = 'restaurant';
+    console.log('[Sidepanel] No issues in either tab, defaulting to Restaurant');
+  }
+
+  // Switch to the determined tab
+  switchTab(targetTab);
+}
+
+// Helper function to load Restaurant data and return badge count
+async function loadRestaurantData() {
+  try {
+    if (!STATE.currentBookingId) {
+      showRestaurantState('notOnBooking');
+      updateBadge('restaurant', 0);
+      return { badge_count: 0 };
+    }
+
+    showRestaurantState('loading');
+
+    const apiEndpoint = STATE.settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1';
+    const matchUrl = `${apiEndpoint}/bookings/match`;
+
+    const data = await fetchWithAuth(matchUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        booking_id: parseInt(STATE.currentBookingId),
+        context: 'chrome-sidepanel'
+      })
+    }, 'chrome-sidepanel');
+
+    if (data && data.html) {
+      restaurantContent.innerHTML = data.html;
+      showRestaurantState('content');
+      updateBadge('restaurant', data.badge_count || 0);
+      return data;
+    } else if (data && data.bookings && data.bookings.length > 0) {
+      restaurantContent.innerHTML = '<div class="bma-sidepanel-result"><p>Restaurant data loaded (JSON format)</p></div>';
+      showRestaurantState('content');
+      updateBadge('restaurant', data.badge_count || 0);
+      return data;
+    } else {
+      restaurantBookingIdDisplay.textContent = STATE.currentBookingId;
+      const adminBaseUrl = STATE.settings.adminBaseUrl || 'https://n4admindev.pterois.co.uk';
+      restaurantAdminLink.href = `${adminBaseUrl}/bookings/?booking_id=${STATE.currentBookingId}`;
+      showRestaurantState('noMatches');
+      updateBadge('restaurant', 0);
+      return { badge_count: 0 };
+    }
+  } catch (error) {
+    console.error('[Sidepanel] Restaurant error:', error);
+    restaurantErrorMessage.textContent = error.message || 'Failed to load restaurant data';
+    showRestaurantState('error');
+    return { badge_count: 0 };
+  }
+}
+
+// Helper function to load Checks data and return badge count
+async function loadChecksData() {
+  try {
+    if (!STATE.currentBookingId) {
+      showChecksState('noBooking');
+      updateBadge('checks', 0);
+      return { badge_count: 0 };
+    }
+
+    showChecksState('loading');
+
+    const apiEndpoint = STATE.settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1';
+    const checksUrl = `${apiEndpoint}/checks/${STATE.currentBookingId}`;
+
+    const data = await fetchWithAuth(checksUrl, {
+      method: 'GET'
+    }, 'chrome-checks');
+
+    if (data && data.html) {
+      checksContent.innerHTML = data.html;
+      showChecksState('content');
+      updateBadge('checks', data.badge_count || 0);
+      return data;
+    } else if (data && data.checks) {
+      checksContent.innerHTML = '<div class="bma-checks-tab"><p>Checks data loaded (JSON format)</p></div>';
+      showChecksState('content');
+      updateBadge('checks', data.badge_count || 0);
+      return data;
+    } else {
+      updateBadge('checks', 0);
+      return { badge_count: 0 };
+    }
+  } catch (error) {
+    console.error('[Sidepanel] Checks error:', error);
+    checksErrorMessage.textContent = error.message || 'Failed to load checks';
+    showChecksState('error');
+    return { badge_count: 0 };
+  }
+}
+
+// ============================================
 // INACTIVITY TIMEOUT (60s)
 // ============================================
 
@@ -238,7 +388,11 @@ function updateBadge(tabName, count) {
 
 async function loadSummaryTab() {
   try {
-    showSummaryState('loading');
+    // Don't show loading on auto-refresh if we already have data
+    const isInitialLoad = STATE.lastSummaryData === null;
+    if (isInitialLoad) {
+      showSummaryState('loading');
+    }
 
     const apiEndpoint = STATE.settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1';
     const summaryUrl = `${apiEndpoint}/summary`;
@@ -250,6 +404,18 @@ async function loadSummaryTab() {
     }, 'chrome-summary');
 
     console.log('[Sidepanel] Summary data received:', data);
+
+    // Check if data has changed by comparing stringified versions
+    const dataString = JSON.stringify(data);
+    const hasChanged = STATE.lastSummaryData !== dataString;
+
+    if (!hasChanged && !isInitialLoad) {
+      console.log('[Sidepanel] Summary data unchanged, skipping UI refresh');
+      return;
+    }
+
+    console.log('[Sidepanel] Summary data changed, refreshing UI');
+    STATE.lastSummaryData = dataString;
 
     if (data && data.html) {
       summaryContent.innerHTML = data.html;
