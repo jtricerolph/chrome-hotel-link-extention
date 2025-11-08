@@ -89,7 +89,8 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
   // Check booking status via API to determine badge
   try {
     const settings = await chrome.storage.local.get(['settings']);
-    const apiEndpoint = settings.settings?.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
+    const apiBase = settings.settings?.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1';
+    const apiEndpoint = `${apiBase}/bookings/match`;
 
     // Prepare authentication header
     const headers = {
