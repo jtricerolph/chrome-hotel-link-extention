@@ -155,6 +155,17 @@ async function checkBookingAndOpenPopup(bookingId, tabId) {
         cachedSidepanelTimestamp: Date.now()
       });
 
+      // Notify sidepanel that fresh data is available (if sidepanel is open)
+      console.log('[Background] Fresh data cached, notifying sidepanel to refresh');
+      chrome.runtime.sendMessage({
+        action: 'bookingUpdated',
+        bookingId: bookingId,
+        source: 'background_fetch'
+      }).catch(err => {
+        // Sidepanel might not be open, that's okay
+        console.log('[Background] Could not notify sidepanel (may not be open):', err.message);
+      });
+
       // Check for warnings and package alerts
       let hasPackageAlert = false;
       let hasWarnings = false;
