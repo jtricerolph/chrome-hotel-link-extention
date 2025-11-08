@@ -2,7 +2,7 @@
 
 // Default settings
 const DEFAULT_SETTINGS = {
-  apiEndpoint: 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match',
+  apiEndpoint: 'https://n4admindev.pterois.co.uk/wp-json/bma/v1',
   adminBaseUrl: 'https://n4admindev.pterois.co.uk',
   wpUsername: '',
   wpAppPassword: '',
@@ -11,7 +11,8 @@ const DEFAULT_SETTINGS = {
   enablePlannerHover: true,
   enableAutoPopup: true,
   autoPopupDelay: 2500,  // milliseconds
-  hoverDelay: 500  // milliseconds
+  hoverDelay: 500,  // milliseconds
+  summaryRefreshRate: 60  // seconds
 };
 
 // Load saved settings when page loads
@@ -38,6 +39,7 @@ async function loadSettings() {
     document.getElementById('enableAutoPopup').checked = settings.enableAutoPopup !== undefined ? settings.enableAutoPopup : DEFAULT_SETTINGS.enableAutoPopup;
     document.getElementById('autoPopupDelay').value = settings.autoPopupDelay || DEFAULT_SETTINGS.autoPopupDelay;
     document.getElementById('hoverDelay').value = settings.hoverDelay || DEFAULT_SETTINGS.hoverDelay;
+    document.getElementById('summaryRefreshRate').value = settings.summaryRefreshRate || DEFAULT_SETTINGS.summaryRefreshRate;
 
     console.log('Settings loaded (credentials hidden)');
   } catch (error) {
@@ -86,6 +88,7 @@ async function saveSettings() {
     const enableAutoPopup = document.getElementById('enableAutoPopup').checked;
     const autoPopupDelay = parseInt(document.getElementById('autoPopupDelay').value) || DEFAULT_SETTINGS.autoPopupDelay;
     const hoverDelay = parseInt(document.getElementById('hoverDelay').value) || DEFAULT_SETTINGS.hoverDelay;
+    const summaryRefreshRate = parseInt(document.getElementById('summaryRefreshRate').value) || DEFAULT_SETTINGS.summaryRefreshRate;
 
     const settings = {
       apiEndpoint: apiEndpoint,
@@ -96,7 +99,8 @@ async function saveSettings() {
       enablePlannerHover: enablePlannerHover,
       enableAutoPopup: enableAutoPopup,
       autoPopupDelay: autoPopupDelay,
-      hoverDelay: hoverDelay
+      hoverDelay: hoverDelay,
+      summaryRefreshRate: summaryRefreshRate
     };
 
     await chrome.storage.local.set({ settings: settings });
@@ -129,6 +133,7 @@ async function resetSettings() {
     document.getElementById('enableAutoPopup').checked = DEFAULT_SETTINGS.enableAutoPopup;
     document.getElementById('autoPopupDelay').value = DEFAULT_SETTINGS.autoPopupDelay;
     document.getElementById('hoverDelay').value = DEFAULT_SETTINGS.hoverDelay;
+    document.getElementById('summaryRefreshRate').value = DEFAULT_SETTINGS.summaryRefreshRate;
 
     console.log('Settings reset to defaults');
     showStatus('Settings reset to defaults', 'success');

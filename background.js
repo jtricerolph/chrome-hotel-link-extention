@@ -395,7 +395,7 @@ chrome.runtime.onInstalled.addListener(() => {
       // No settings exist, set defaults
       chrome.storage.local.set({
         settings: {
-          apiEndpoint: 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match',
+          apiEndpoint: 'https://n4admindev.pterois.co.uk/wp-json/bma/v1',
           adminBaseUrl: 'https://n4admindev.pterois.co.uk',
           wpUsername: '',
           wpAppPassword: '',
@@ -404,7 +404,8 @@ chrome.runtime.onInstalled.addListener(() => {
           enablePlannerHover: true,
           enableAutoPopup: true,
           autoPopupDelay: 2500,
-          hoverDelay: 500
+          hoverDelay: 500,
+          summaryRefreshRate: 60
         }
       });
       console.log('[Background] Default settings initialized');

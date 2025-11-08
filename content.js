@@ -700,7 +700,8 @@ async function fetchRestaurantBookingData(bookingId) {
     // Get settings
     const result = await chrome.storage.local.get(['settings']);
     const settings = result.settings || {};
-    const apiEndpoint = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
+    const apiBase = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1';
+    const apiEndpoint = `${apiBase}/bookings/match`;
 
     // Prepare authentication header
     const headers = {
@@ -773,7 +774,8 @@ async function fetchRestaurantBookingDataJSON(bookingId) {
 
     const result = await chrome.storage.local.get(['settings']);
     const settings = result.settings || {};
-    const apiEndpoint = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1/bookings/match';
+    const apiBase = settings.apiEndpoint || 'https://n4admindev.pterois.co.uk/wp-json/bma/v1';
+    const apiEndpoint = `${apiBase}/bookings/match`;
 
     // Prepare authentication header
     const headers = {

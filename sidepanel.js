@@ -14,6 +14,10 @@ const STATE = {
   summaryRefreshInterval: null,
   inactivityTimeout: null,
 
+  // Countdown timer
+  countdownInterval: null,
+  countdownSeconds: 60,
+
   // Badge counts
   badges: {
     summary: 0,
@@ -35,6 +39,7 @@ let tabBadges = {};
 
 // Summary Tab Elements
 let summaryLoading, summaryError, summaryErrorMessage, summaryRetryBtn, summaryContent;
+let summaryCountdown, summaryCountdownText;
 
 // Restaurant Tab Elements
 let restaurantLoading, restaurantNotOnBooking, restaurantError, restaurantErrorMessage;
@@ -77,6 +82,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   summaryErrorMessage = document.getElementById('summaryErrorMessage');
   summaryRetryBtn = document.getElementById('summaryRetryBtn');
   summaryContent = document.getElementById('summaryContent');
+  summaryCountdown = document.getElementById('summaryCountdown');
+  summaryCountdownText = document.getElementById('summaryCountdownText');
 
   // Restaurant tab elements
   restaurantLoading = document.getElementById('restaurantLoading');
@@ -112,20 +119,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   STATE.settings = result.settings || {};
   STATE.currentBookingId = result.currentBookingId || null;
 
+  // Get refresh rate from settings (default: 60 seconds)
+  const refreshRate = STATE.settings.summaryRefreshRate || 60;
+  STATE.countdownSeconds = refreshRate;
+
   console.log('[Sidepanel] Initial state:', {
     currentBookingId: STATE.currentBookingId,
-    hasSettings: !!STATE.settings.apiEndpoint
+    hasSettings: !!STATE.settings.apiEndpoint,
+    refreshRate: refreshRate
   });
 
   // Start with Summary tab
   switchTab('summary');
   loadSummaryTab();
 
-  // Setup auto-refresh for Summary tab (every 30 seconds)
-  STATE.summaryRefreshInterval = setInterval(() => {
-    console.log('[Sidepanel] Auto-refreshing Summary tab...');
-    loadSummaryTab();
-  }, 30000); // 30 seconds
+  // Setup auto-refresh for Summary tab with countdown
+  startSummaryRefreshTimer(refreshRate);
 
   // Listen for messages from background script
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -383,6 +392,57 @@ function updateBadge(tabName, count) {
 }
 
 // ============================================
+// SUMMARY REFRESH TIMER WITH COUNTDOWN
+// ============================================
+
+function startSummaryRefreshTimer(refreshRate) {
+  // Clear any existing timers
+  if (STATE.summaryRefreshInterval) {
+    clearInterval(STATE.summaryRefreshInterval);
+  }
+  if (STATE.countdownInterval) {
+    clearInterval(STATE.countdownInterval);
+  }
+
+  // Convert refresh rate to milliseconds
+  const refreshRateMs = refreshRate * 1000;
+
+  // Set up the refresh interval
+  STATE.summaryRefreshInterval = setInterval(() => {
+    console.log('[Sidepanel] Auto-refreshing Summary tab...');
+    loadSummaryTab();
+    resetCountdown(refreshRate);
+  }, refreshRateMs);
+
+  // Set up the countdown display (updates every second)
+  STATE.countdownSeconds = refreshRate;
+  updateCountdownDisplay();
+
+  STATE.countdownInterval = setInterval(() => {
+    STATE.countdownSeconds--;
+
+    if (STATE.countdownSeconds <= 0) {
+      STATE.countdownSeconds = refreshRate;
+    }
+
+    updateCountdownDisplay();
+  }, 1000);
+
+  console.log('[Sidepanel] Summary refresh timer started with', refreshRate, 'second interval');
+}
+
+function resetCountdown(refreshRate) {
+  STATE.countdownSeconds = refreshRate;
+  updateCountdownDisplay();
+}
+
+function updateCountdownDisplay() {
+  if (summaryCountdownText) {
+    summaryCountdownText.textContent = `Checking for updates in ${STATE.countdownSeconds}s`;
+  }
+}
+
+// ============================================
 // SUMMARY TAB
 // ============================================
 
@@ -443,6 +503,7 @@ function showSummaryState(state) {
   summaryLoading.style.display = 'none';
   summaryError.style.display = 'none';
   summaryContent.style.display = 'none';
+  summaryCountdown.style.display = 'none';
 
   switch (state) {
     case 'loading':
@@ -453,6 +514,7 @@ function showSummaryState(state) {
       break;
     case 'content':
       summaryContent.style.display = 'block';
+      summaryCountdown.style.display = 'flex'; // Show countdown when content is visible
       break;
   }
 }

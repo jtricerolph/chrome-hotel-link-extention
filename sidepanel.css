@@ -239,6 +239,36 @@ body::-webkit-scrollbar-thumb:hover {
   background: #357abd;
 }
 
+/* Summary Countdown Display */
+.summary-countdown {
+  position: sticky;
+  bottom: 0;
+  background: #f8f9fa;
+  border-top: 1px solid #e5e7eb;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #6b7280;
+  z-index: 50;
+}
+
+.countdown-icon {
+  font-size: 14px;
+  animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+#summaryCountdownText {
+  font-weight: 500;
+}
+
 /* Responsive adjustments for narrower sidepanels */
 @media (max-width: 500px) {
   .state-panel {
@@ -251,5 +281,10 @@ body::-webkit-scrollbar-thumb:hover {
 
   .state-panel p {
     font-size: 14px;
+  }
+
+  .summary-countdown {
+    font-size: 12px;
+    padding: 6px 12px;
   }
 }
